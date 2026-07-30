@@ -59,7 +59,12 @@ color calibration.
   tree per the amazon-oss instructions; `patches/local-manifest-fixes.xml`
   contains the manifest fixes this work needed.
 
-## Installation overview
+## Installation
+
+**[docs/INSTALL.md](docs/INSTALL.md) is the complete step-by-step guide** -
+every command from a stock LineageOS install to a working, color-calibrated
+camera, plus troubleshooting. The overview below is the map; the guide is
+the route.
 
 There are three layers. They must all be applied; each fixes failures the
 next layer would otherwise hit.
@@ -117,13 +122,13 @@ Additionally apply:
 ```
 patches/0005-camera-device-1.0-cookie-fallback-and-ANativeWindowBuffer-preview.patch
 patches/0006-camera-flatten-tolerate-zero-size-String8-from-legacy-HALs.patch
-patches/0009-camera-front-camera-feature-and-sensor-orientation.patch
+patches/0011-device-tree-camera-enablement.patch
 ```
 
 0005 and 0006 patch AOSP camera code the tree builds
-(`camera.device@1.0-impl`, `libcamera_client`); 0009 fixes the device
-advertising a back camera it does not have (which hangs every CameraX app
-on the device) and the sensor orientation.
+(`camera.device@1.0-impl`, `libcamera_client`); 0011 carries all the device
+tree changes (provider declaration, packages, front-camera feature, sensor
+orientation, HAL1 native handle flag).
 
 ### Layer 3: on-device userspace
 

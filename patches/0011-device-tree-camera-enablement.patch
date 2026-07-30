@@ -1,0 +1,110 @@
+device tree: camera enablement for cronos
+
+All device tree changes as one applyable diff (this includes and supersedes
+the former patch 0009: the front-camera feature declaration and the sensor
+orientation override are part of it):
+the passthrough legacy camera provider (replacing the MediaTek provider
+declaration that nothing serves), the provider implementation and shim in
+PRODUCT_PACKAGES, the front-camera feature declaration (the plain
+camera.xml advertised a back camera this device does not have, which broke
+CameraX device-wide), the dynamic native handle flag for the legacy HAL1
+wrapper, and the sensor orientation override.
+
+Apply from the source tree root:
+    patch -p1 < 0011-device-tree-camera-enablement.patch
+
+proprietary-files.txt additions are separate: append
+cronos-camera-proprietary-files.txt (see patches/README.md section 3).
+
+diff --git a/device/amazon/mt8163-common/manifest.xml b/device/amazon/mt8163-common/manifest.xml
+index 64c7717..669d448 100644
+--- a/device/amazon/mt8163-common/manifest.xml
++++ b/device/amazon/mt8163-common/manifest.xml
+@@ -8,10 +8,21 @@
+         <transport>hwbinder</transport>
+         <fqname>@2.0::IBluetoothAudioProvidersFactory/default</fqname>
+     </hal>
++    <!--
++        The stock camera stack on these devices is MediaTek's legacy camera1
++        HAL (camera.mt8163.so), so the provider is AOSP's passthrough legacy
++        one. The previous "internal/0" over hwbinder is MediaTek's own
++        provider, served by a camerahalserver binary Amazon never shipped here,
++        which left the camera service resolving the provider to nothing.
++    -->
+     <hal format="hidl">
+         <name>android.hardware.camera.provider</name>
+-        <transport>hwbinder</transport>
+-        <fqname>@2.4::ICameraProvider/internal/0</fqname>
++        <transport arch="32+64">passthrough</transport>
++        <version>2.4</version>
++        <interface>
++            <name>ICameraProvider</name>
++            <instance>legacy/0</instance>
++        </interface>
+     </hal>
+     <hal format="hidl">
+         <name>android.hardware.drm</name>
+diff --git a/device/amazon/mt8163-common/mt8163.mk b/device/amazon/mt8163-common/mt8163.mk
+index 5259e13..1ab42c4 100644
+--- a/device/amazon/mt8163-common/mt8163.mk
++++ b/device/amazon/mt8163-common/mt8163.mk
+@@ -54,12 +54,21 @@ PRODUCT_PACKAGES += \
+ 
+ # Camera
+ PRODUCT_PACKAGES += \
++    android.hardware.camera.provider@2.4-impl \
+     camera.device@1.0-impl \
+     camera.device@3.2-impl \
++    libcamera_shim \
+     libsensorndkbridge
+ 
++# These devices have a single front-facing camera and no back camera, so
++# advertise camera.front rather than the plain camera.xml (which declares
++# android.hardware.camera, i.e. a back camera). Getting this wrong is not
++# cosmetic: CameraX's CameraValidator only checks for a back camera when
++# FEATURE_CAMERA is advertised, so the bogus feature made it fail device-wide
++# with "Camera LensFacing verification failed" and retry init forever in any
++# app that does not set an availableCamerasLimiter.
+ PRODUCT_COPY_FILES += \
+-    frameworks/native/data/etc/android.hardware.camera.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.xml
++    frameworks/native/data/etc/android.hardware.camera.front.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.front.xml
+ 
+ # Display
+ PRODUCT_PACKAGES += \
+diff --git a/device/amazon/cronos/BoardConfig.mk b/device/amazon/cronos/BoardConfig.mk
+index b2d4620..0ae19da 100644
+--- a/device/amazon/cronos/BoardConfig.mk
++++ b/device/amazon/cronos/BoardConfig.mk
+@@ -8,6 +8,11 @@ DEVICE_PATH := device/amazon/cronos
+ # BLuetooth
+ BOARD_BLUETOOTH_BDROID_BUILDCFG_INCLUDE_DIR := $(DEVICE_PATH)/bluetooth
+ 
++# Camera
++# The stock camera1 HAL passes native handles that the current HAL1 wrapper
++# otherwise treats as fixed-size.
++TARGET_NEEDS_LEGACY_CAMERA_HAL1_DYN_NATIVE_HANDLE := true
++
+ # Bootloader
+ TARGET_BOOTLOADER_BOARD_NAME := cronos
+ 
+diff --git a/device/amazon/cronos/device.mk b/device/amazon/cronos/device.mk
+index b50db70..aedd1e9 100644
+--- a/device/amazon/cronos/device.mk
++++ b/device/amazon/cronos/device.mk
+@@ -97,6 +97,16 @@ PRODUCT_PACKAGES += \
+ PRODUCT_COPY_FILES += \
+     $(call find-copy-subdir-files,*,$(LOCAL_PATH)/configs/wifi/,$(TARGET_COPY_OUT_VENDOR)/etc/wifi)
+ 
++# Camera
++# The OV02B10 is landscape-mounted, matching this device's landscape-natural
++# 960x480 panel, and the sensor driver flips it 180 degrees so frames arrive
++# upright. The MediaTek HAL nonetheless reports a phone-style 270, which makes
++# every client that correctly rotates by SENSOR_ORIENTATION come out sideways.
++# The value comes from inside libcam.utils.so and cannot be fixed in the blob,
++# so camera.device@1.0-impl honours this override instead.
++PRODUCT_PROPERTY_OVERRIDES += \
++    ro.camera.sensor_orientation=0
++
+ # Inherit from mt8163-common
+ $(call inherit-product, device/amazon/mt8163-common/mt8163.mk)
+ 
