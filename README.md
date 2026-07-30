@@ -223,7 +223,9 @@ Learned the hard way; both of these can take the device down completely.
 
 | Path | What it is |
 | --- | --- |
+| [docs/INSTALL.md](docs/INSTALL.md) | Step-by-step installation, verification, calibration, troubleshooting |
 | [docs/findings.md](docs/findings.md) | The full investigation, in order, with every dead end kept and marked |
+| [docs/building.md](docs/building.md) | Getting the LineageOS tree for these devices to actually build |
 | [docs/handoff-takepicture.md](docs/handoff-takepicture.md) | Worked example of debugging one bug end to end (the capture stall) |
 | [patches/](patches/) | Kernel and AOSP patches, numbered in application order |
 | [shims/libcamera_shim/](shims/libcamera_shim/) | Source shim closing the 11-symbol gap between the API 25 blobs and Android 11 |
