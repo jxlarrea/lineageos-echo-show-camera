@@ -1,0 +1,49 @@
+# Durable form of the camera bring-up workarounds.
+#
+# Replaces the manual incantation that previously had to be run as root after
+# every boot. Installed as /system/etc/init/camera-bringup.rc.
+
+on post-fs-data
+    # AWB statistics dumps land here when awb.debug.dump.enable=1; the 3A
+    # blob hardcodes /sdcard/awb/, which the shim rewrites to this path.
+    mkdir /data/awbdump 0777 root root
+
+    # AWB output trim, applied by the shim's AwbAlgo::handleAWB wrapper.
+    # The blob set carries OV9734 tuning but the sensor is an OV02B10, so
+    # adaptive AWB decisions land with an illuminant-dependent spectral
+    # bias. The shim interpolates between two calibrated anchors using the
+    # algorithm's own B gain as the illuminant key; these 512-based
+    # multipliers were calibrated against a grey ceiling under daylight
+    # (.r/.b) and 2600K LED (.r.warm/.b.warm) and render both neutral.
+    # Per-device touch-up: setprop the values and reopen the camera.
+    setprop persist.camera.awbtrim.r 390
+    setprop persist.camera.awbtrim.b 532
+    setprop persist.camera.awbtrim.r.warm 431
+    setprop persist.camera.awbtrim.b.warm 412
+    # The camera HAL ran in mediaserver on Android 7, so the nodes it needs are
+    # owned by media, while it now runs in cameraserver. Missing MTK_SMI/m4u
+    # access is not benign: the ISP then DMAs through unconfigured M4U ports and
+    # the resulting EMI MPU violation storm livelocks the whole device.
+    # ueventd does not manage procfs, so /proc/m4u needs an explicit chmod.
+    chmod 0666 /dev/MTK_SMI
+    chmod 0666 /dev/mdp_sync
+    chmod 0666 /dev/mtk_cmdq
+    chmod 0666 /proc/m4u
+
+    # The factory calibration partition is never mounted by this port, so the
+    # HAL logged "can't open calibration data /persist/calibration.bin" and
+    # lsc_mgr2 reported ERR_NO_SHADING from the very first run.
+    mount ext4 /dev/block/by-name/persist /persist ro nosuid nodev
+
+    # The default lens-shading implementation ("Rto", ratio) used to null
+    # deref in LscRatioImp::genHwTbl, and debug.lsc_mgr.type=0 was set here
+    # to avoid it. That crash was the missing factory calibration: with
+    # /persist mounted above, the ratio path runs per-frame with no crashes,
+    # so shading correction now stays enabled.
+
+    # The sensor is landscape-mounted and the driver flips it 180 degrees, so
+    # frames arrive upright - but the MediaTek HAL still reports 270 and any
+    # client that rotates by SENSOR_ORIENTATION ends up sideways. Honoured by
+    # camera.device@1.0-impl. Also set as a build property in
+    # device/amazon/cronos/device.mk; this covers already-built images.
+    setprop ro.camera.sensor_orientation 0

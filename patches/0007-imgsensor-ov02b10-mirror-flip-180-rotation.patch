@@ -1,0 +1,187 @@
+imgsensor: ov02b10: implement mirror/flip and rotate 180 degrees
+
+The OV02B10 is mounted rotated 180 degrees on cronos, so the preview came
+out upside down, and nothing compensated: the driver declared
+.mirror = IMAGE_NORMAL and set_mirror_flip() was #if 0'd out with all four
+cases empty - as it also is in the upstream reference driver this was ported
+from, so no vendor ever implemented it and the register appears in no source
+we have.
+
+Register 0x12 on page 1 was found empirically with
+tools/cmdq-trace/flip-sweep.sh, which sweeps candidates through module
+parameters and compares each capture against the 180-degree rotation of an
+unflipped baseline. OV02A10's 0x3f, the obvious guess from the sibling part,
+does nothing here.
+
+The page and register stay exposed as module parameters so a correction does
+not cost another kernel build and boot flash.
+
+Note the two changes below must move together: IMAGE_HV_MIRROR shifts the
+Bayer phase by one pixel in each axis, so the native BGGR reads out as RGGB.
+Flipping without also changing sensor_output_dataformat leaves red and blue
+swapped - which is exactly what the intermediate build showed, a green cast.
+
+Verified from a cold boot: preview upright, R/G 1.08, B/G 1.02, zero
+startStream or MDP errors.
+
+--- a/drivers/misc/mediatek/imgsensor/src/mt8163/ov02b10_mipi_raw/ov02b10mipiraw_Sensor.c
++++ b/drivers/misc/mediatek/imgsensor/src/mt8163/ov02b10_mipi_raw/ov02b10mipiraw_Sensor.c
+@@ -21,6 +21,7 @@
+ #include <linux/fs.h>
+ #include <linux/atomic.h>
+ #include <linux/types.h>
++#include <linux/moduleparam.h>
+ 
+ #include "kd_camera_hw.h"
+ #include "kd_imgsensor.h"
+@@ -143,7 +144,11 @@
+ 	 * Start from the same Bayer order the in-tree ov9734 driver uses; if
+ 	 * the colours come out swapped, this is the value to rotate.
+ 	 */
+-	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_B,
++	/* IMAGE_HV_MIRROR shifts the Bayer phase by one pixel in each axis, so
++	 * the native BGGR reads out as RGGB. Keep these two in step: changing
++	 * .mirror without changing this swaps red and blue.
++	 */
++	.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_R,
+ 	.mclk = 24,//mclk value, suggest 24 or 26 for 24Mhz or 26Mhz
+ 	.mipi_lane_num = SENSOR_MIPI_1_LANE,//mipi lane num
+ 	.i2c_addr_table = {0x78,0xff},
+@@ -152,7 +157,8 @@
+ 
+ 
+ static struct imgsensor_struct imgsensor = {
+-	.mirror = IMAGE_NORMAL,                //mirrorflip information
++	/* The module is mounted rotated 180 degrees on cronos. */
++	.mirror = IMAGE_HV_MIRROR,              //mirrorflip information
+ 	.sensor_mode = IMGSENSOR_MODE_INIT, //IMGSENSOR_MODE enum value,record current sensor mode,such as: INIT, Preview, Capture, Video,High Speed Video, Slim Video
+ 	.shutter = 0x3D0,                    //current shutter
+ 	.gain = 0x100,                        //current gain
+@@ -401,37 +407,65 @@
+ 	return gain;
+ }    /*    set_gain  */
+ 
+-#if 0
++/* OV02B10 mirror/flip.
++ *
++ * The reference driver this was ported from left set_mirror_flip() stubbed
++ * out with empty cases, so the register is not documented in any source we
++ * have. Register 0x3f bit[0] (horizontal mirror) / bit[1] (vertical flip) is
++ * taken from OmniVision's OV02A10, a sibling part sharing this paged register
++ * architecture and the same 0xfd page-select.
++ *
++ * Determined empirically with tools/cmdq-trace/flip-sweep.sh, which drives
++ * these parameters and compares each capture against the 180-degree rotation
++ * of an unflipped baseline: page 1 register 0x12 is the hit. (OV02A10's 0x3f,
++ * the obvious guess from the sibling part, does nothing on this sensor.)
++ *
++ * Because that was inference rather than a datasheet, the page and register are
++ * exposed as parameters so they can be corrected from
++ * /sys/module/ov02b10mipiraw_Sensor/parameters/ without another kernel build
++ * and boot flash. ov02b10_mirror overrides the mode at runtime too
++ * (0=normal 1=H 2=V 3=HV).
++ */
++static int ov02b10_flip_page = 0x01;
++module_param(ov02b10_flip_page, int, 0644);
++static int ov02b10_flip_reg = 0x12;
++module_param(ov02b10_flip_reg, int, 0644);
++static int ov02b10_mirror = -1;
++module_param(ov02b10_mirror, int, 0644);
++
+ static void set_mirror_flip(kal_uint8 image_mirror)
+ {
+-	LOG_INF("image_mirror = %d\n", image_mirror);
++	kal_uint8 val;
+ 
+-	/********************************************************
+-	 *
++	if (ov02b10_mirror >= 0)
++		image_mirror = (kal_uint8)ov02b10_mirror;
+ 
+-	 *   ISP and Sensor flip or mirror register bit should be the same!!
+-	 *
+-	 ********************************************************/
++	write_cmos_sensor(0xfd, ov02b10_flip_page);
++	val = read_cmos_sensor(ov02b10_flip_reg) & ~0x03;
+ 
+ 	switch (image_mirror) {
+ 	case IMAGE_NORMAL:
+-
+ 		break;
+ 	case IMAGE_H_MIRROR:
+-
++		val |= 0x01;
+ 		break;
+ 	case IMAGE_V_MIRROR:
+-
++		val |= 0x02;
+ 		break;
+ 	case IMAGE_HV_MIRROR:
+-
++		val |= 0x03;
+ 		break;
+ 	default:
+ 		LOG_INF("Error image_mirror setting\n");
++		break;
+ 	}
+ 
++	write_cmos_sensor(ov02b10_flip_reg, val);
++
++	/* page 3 / 0xfe latches the paged writes */
++	write_cmos_sensor(0xfd, 0x03);
++	write_cmos_sensor(0xfe, 0x02);
+ }
+-#endif
+ 
+ /*************************************************************************
+  * FUNCTION
+@@ -654,6 +688,7 @@
+ 
+ 
+ 	/* Legacy HAL: start the stream here, see streaming_control(). */
++	set_mirror_flip(imgsensor.mirror);
+ 	streaming_control(KAL_TRUE);
+ 
+ } 
+@@ -754,6 +789,7 @@
+ 	write_cmos_sensor(0xfd, 0x01);
+ 
+ 	/* Legacy HAL: start the stream here, see streaming_control(). */
++	set_mirror_flip(imgsensor.mirror);
+ 	streaming_control(KAL_TRUE);
+ 
+ }    /*    capture_setting  */
+@@ -853,6 +889,7 @@
+ 	write_cmos_sensor(0xfd, 0x01);
+ 
+ 	/* Legacy HAL: start the stream here, see streaming_control(). */
++	set_mirror_flip(imgsensor.mirror);
+ 	streaming_control(KAL_TRUE);
+ 
+ } 
+@@ -953,6 +990,7 @@
+ 
+ 
+ 	/* Legacy HAL: start the stream here, see streaming_control(). */
++	set_mirror_flip(imgsensor.mirror);
+ 	streaming_control(KAL_TRUE);
+ 
+ }
+@@ -1053,6 +1091,7 @@
+ 
+ 
+ 	/* Legacy HAL: start the stream here, see streaming_control(). */
++	set_mirror_flip(imgsensor.mirror);
+ 	streaming_control(KAL_TRUE);
+ 
+ }
+@@ -1937,7 +1976,8 @@
+ 	case SENSOR_FEATURE_SET_STREAMING_RESUME:
+ 		if (*feature_data != 0)
+ 			set_shutter(*feature_data);
+-		streaming_control(KAL_TRUE);
++		set_mirror_flip(imgsensor.mirror);
++	streaming_control(KAL_TRUE);
+ 	break;
+     case SENSOR_FEATURE_SET_SHUTTER_FRAME_TIME:
+ 		set_shutter_frame_length((UINT16) *feature_data,

@@ -1,0 +1,55 @@
+# Camera blobs for cronos (Echo Show 5 2nd gen)
+#
+# Source: Amazon/cronos/cronos:6.0/NS6573/6567:user/amz-p,release-keys
+# Stock camera stack is MediaTek's legacy camera1 HAL, built for API 25
+# (Android 7.1) even though the surrounding platform is Amazon's "amz-p"
+# (Android 9) branch. OV9734 static metadata lives in libcam.halsensor.so.
+#
+# Paths are rewritten from the stock non-Treble layout (/system/vendor/lib)
+# into /vendor/lib for Android 11.
+
+vendor/lib/hw/camera.mt8163.so
+vendor/lib/lib3a.so
+vendor/lib/libcam.camadapter.so
+vendor/lib/libcam.campipe.so
+vendor/lib/libcam.camshot.so
+vendor/lib/libcam.client.so
+vendor/lib/libcam.device1.so
+vendor/lib/libcam.device3.so
+vendor/lib/libcam.exif.so
+vendor/lib/libcam.exif.v3.so
+vendor/lib/libcam.hal3a.v3.dng.so
+vendor/lib/libcam.hal3a.v3.so
+vendor/lib/libcam.halsensor.so
+vendor/lib/libcam.iopipe.so
+vendor/lib/libcam.iopipe_FrmB.so
+vendor/lib/libcam.metadata.so
+vendor/lib/libcam.metadataprovider.so
+vendor/lib/libcam.paramsmgr.so
+vendor/lib/libcam.utils.sensorlistener.so
+vendor/lib/libcam.utils.so
+vendor/lib/libcam1_utils.so
+vendor/lib/libcam3_app.so
+vendor/lib/libcam3_hwnode.so
+vendor/lib/libcam3_hwpipeline.so
+vendor/lib/libcam3_pipeline.so
+vendor/lib/libcam3_utils.so
+vendor/lib/libcam_hwutils.so
+vendor/lib/libcam_mmp.so
+vendor/lib/libcam_platform.so
+vendor/lib/libcam_utils.so
+vendor/lib/libcamalgo.so
+vendor/lib/libcamdrv.so
+vendor/lib/libcamdrv_FrmB.so
+vendor/lib/libcameracustom.so
+vendor/lib/libfeatureio.so
+vendor/lib/libfeatureiodrv.so
+vendor/lib/libhal_effects.so
+vendor/lib/libhdrproc.so
+vendor/lib/libimageio.so
+vendor/lib/libimageio_FrmB.so
+vendor/lib/libimageio_plat_drv.so
+vendor/lib/libimageio_plat_drv_FrmB.so
+vendor/lib/libmtk_mmutils.so
+vendor/lib/libmtkcam_fwkutils.so
+vendor/lib/libmtkjpeg.so

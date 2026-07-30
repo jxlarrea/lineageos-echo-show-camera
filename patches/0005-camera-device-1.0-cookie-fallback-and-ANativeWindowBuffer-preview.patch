@@ -1,0 +1,213 @@
+camera.device@1.0-impl: cookie fallback, ANativeWindowBuffer preview, and
+sensor orientation override
+
+Three fixes to the AOSP HAL1 wrapper, all needed by MediaTek's legacy blobs:
+
+1) libcam.client.so calls the get_memory callback without forwarding the
+   cookie passed to set_callbacks(), so `user` arrives NULL and
+   object->mDeviceCallback faults at offset 0x8c. Only one CameraDevice is
+   ever open in the process, so record it at open() and fall back to it.
+
+2) sDequeueBuffer handed back the address of a standalone buffer_handle_t.
+   A real ANativeWindow returns a pointer *into* an ANativeWindowBuffer, and
+   MediaTek's blob recovers that object by offsetting back from it. Wrap each
+   imported handle in a GraphicBuffer and return &gb->handle.
+
+3) The HAL reports a phone-style SENSOR_ORIENTATION (270) although the sensor
+   is landscape-mounted and the driver flips it 180 degrees, so frames arrive
+   upright and any client that rotates by SENSOR_ORIENTATION comes out
+   sideways. The value originates in libcam.utils.so
+   (DevMetaInfo::queryDeviceWantedOrientation) and cannot be fixed in the
+   blobs, so honour ro.camera.sensor_orientation here, where both HAL1 clients
+   and the camera2 legacy shim pick it up. See patches/0009-* for the property.
+
+diff --git a/camera/device/1.0/default/Android.bp b/camera/device/1.0/default/Android.bp
+index 788eaca..3db7157 100644
+--- a/camera/device/1.0/default/Android.bp
++++ b/camera/device/1.0/default/Android.bp
+@@ -25,6 +25,7 @@ cc_library_shared {
+         "liblog",
+         "libgralloctypes",
+         "libhardware",
++        "libui",
+         "libcamera_metadata",
+     ],
+     static_libs: [
+diff --git a/camera/device/1.0/default/CameraDevice.cpp b/camera/device/1.0/default/CameraDevice.cpp
+index cbea3f0..9ebcfb4 100644
+--- a/camera/device/1.0/default/CameraDevice.cpp
++++ b/camera/device/1.0/default/CameraDevice.cpp
+@@ -15,6 +15,7 @@
+  */
+ 
+ #define LOG_TAG "CamDev@1.0-impl"
++#include <cutils/properties.h>
+ #include <hardware/camera.h>
+ #include <hardware/gralloc1.h>
+ #include <hidlmemory/mapping.h>
+@@ -142,6 +143,8 @@ void CameraDevice::CameraPreviewWindow::cleanUpCirculatingBuffers() {
+     }
+     mCirculatingBuffers.clear();
+     mBufferIdMap.clear();
++    mWrappedBuffers.clear();
++
+ }
+ 
+ int CameraDevice::sDequeueBuffer(struct preview_stream_ops* w,
+@@ -172,10 +175,25 @@ int CameraDevice::sDequeueBuffer(struct preview_stream_ops* w,
+                         return;
+                     } else {
+                         object->mCirculatingBuffers[bufferId] = importedBuf;
+-                        object->mBufferIdMap[&(object->mCirculatingBuffers[bufferId])] = bufferId;
++                        /*
++                         * Wrap it so the pointer we hand back points into a real
++                         * ANativeWindowBuffer - see the comment on
++                         * mWrappedBuffers. WRAP_HANDLE keeps ownership with
++                         * mCirculatingBuffers / the HandleImporter.
++                         */
++                        sp<GraphicBuffer> wrapped = new GraphicBuffer(
++                                importedBuf, GraphicBuffer::WRAP_HANDLE,
++                                object->mBufferWidth, object->mBufferHeight,
++                                static_cast<android::PixelFormat>(object->mBufferFormat),
++                                /*layerCount*/ 1,
++                                GRALLOC_USAGE_HW_CAMERA_WRITE |
++                                        GRALLOC_USAGE_HW_TEXTURE,
++                                strd);
++                        object->mWrappedBuffers[bufferId] = wrapped;
++                        object->mBufferIdMap[&(wrapped->handle)] = bufferId;
+                     }
+                 }
+-                *buffer = &(object->mCirculatingBuffers[bufferId]);
++                *buffer = &(object->mWrappedBuffers[bufferId]->handle);
+                 *stride = strd;
+             }
+         });
+@@ -226,6 +244,12 @@ int CameraDevice::sSetBuffersGeometry(struct preview_stream_ops* w,
+     }
+ 
+     object->cleanUpCirculatingBuffers();
++    {
++        Mutex::Autolock _l(object->mLock);
++        object->mBufferWidth = static_cast<uint32_t>(width);
++        object->mBufferHeight = static_cast<uint32_t>(height);
++        object->mBufferFormat = format;
++    }
+     return getStatusT(
+             object->mPreviewCallback->setBuffersGeometry(width, height, (PixelFormat) format));
+ }
+@@ -359,9 +383,35 @@ CameraDevice::CameraHeapMemory::~CameraHeapMemory() {
+ }
+ 
+ // shared memory methods
++/*
++ * MediaTek's legacy camera1 HAL on mt8163 (libcam.client.so) invokes the
++ * get_memory callback without forwarding the cookie that was handed to
++ * set_callbacks(), so `user` arrives NULL and the deref below faults:
++ *   CameraDevice::sGetMemory+18, fault addr 0x8c (offset of mDeviceCallback)
++ * called from NSPrvCbClient::PrvCbImgBuf::alloc during startPreview.
++ *
++ * There is only ever one open CameraDevice in this process, so fall back to
++ * the device recorded at open() when the HAL loses the cookie. Same treatment
++ * for the notify/data callbacks, which deref `user` identically.
++ */
++static CameraDevice* sCookielessFallbackDevice = nullptr;
++
++static CameraDevice* resolveCallbackDevice(void* user, const char* who) {
++    if (user != nullptr) {
++        return static_cast<CameraDevice*>(user);
++    }
++    if (sCookielessFallbackDevice == nullptr) {
++        ALOGE("%s: HAL passed no cookie and no device is open", who);
++    }
++    return sCookielessFallbackDevice;
++}
++
+ camera_memory_t* CameraDevice::sGetMemory(int fd, size_t buf_size, uint_t num_bufs, void *user) {
+     ALOGV("%s", __FUNCTION__);
+-    CameraDevice* object = static_cast<CameraDevice*>(user);
++    CameraDevice* object = resolveCallbackDevice(user, __FUNCTION__);
++    if (object == nullptr) {
++        return nullptr;
++    }
+     if (object->mDeviceCallback == nullptr) {
+         ALOGE("%s: camera HAL request memory while camera is not opened!", __FUNCTION__);
+         return nullptr;
+@@ -639,6 +689,24 @@ Return<void> CameraDevice::getCameraInfo(getCameraInfo_cb _hidl_cb) {
+                 cameraInfo.facing = CameraFacing::FRONT;
+             }
+             cameraInfo.orientation = info.orientation;
++
++            // Some MediaTek HALs report a phone-style sensor orientation that
++            // does not match how the module is actually mounted. On cronos the
++            // sensor is landscape-mounted, matching the landscape-natural
++            // panel, and the driver already flips it 180 degrees, so frames
++            // arrive upright - but the HAL still reports 270, and every client
++            // that correctly rotates by SENSOR_ORIENTATION ends up sideways.
++            //
++            // The value originates inside libcam.utils.so
++            // (DevMetaInfo::queryDeviceWantedOrientation) and cannot be
++            // corrected in the vendor blobs, so override it here, where both
++            // HAL1 clients and the camera2 legacy shim pick it up.
++            char prop[PROPERTY_VALUE_MAX];
++            if (property_get("ro.camera.sensor_orientation", prop, nullptr) > 0) {
++                cameraInfo.orientation = atoi(prop);
++                ALOGI("%s: sensor orientation overridden %d -> %d",
++                        __FUNCTION__, info.orientation, cameraInfo.orientation);
++            }
+         } else {
+             ALOGE("%s: get camera info failed!", __FUNCTION__);
+             status = Status::INTERNAL_ERROR;
+@@ -711,6 +779,7 @@ Return<Status> CameraDevice::open(const sp<ICameraDeviceCallback>& callback) {
+ 
+     initHalPreviewWindow();
+     mDeviceCallback = callback;
++    sCookielessFallbackDevice = this;
+ #ifdef QTI_CAMERA_DEVICE
+     mQDeviceCallback =
+         vendor::qti::hardware::camera::device::V1_0::IQCameraDeviceCallback::castFrom(callback);
+@@ -1056,6 +1125,9 @@ Return<void> CameraDevice::close() {
+ 
+ void CameraDevice::closeLocked() {
+     ALOGI("Closing camera %s", mCameraId.c_str());
++    if (sCookielessFallbackDevice == this) {
++        sCookielessFallbackDevice = nullptr;
++    }
+     if(mDevice) {
+         int rc = mDevice->common.close(&mDevice->common);
+         if (rc != OK) {
+diff --git a/camera/device/1.0/default/CameraDevice_1_0.h b/camera/device/1.0/default/CameraDevice_1_0.h
+index 2b35a73..927ded0 100644
+--- a/camera/device/1.0/default/CameraDevice_1_0.h
++++ b/camera/device/1.0/default/CameraDevice_1_0.h
+@@ -22,6 +22,7 @@
+ #include "utils/SortedVector.h"
+ #include "CameraModule.h"
+ #include "HandleImporter.h"
++#include <ui/GraphicBuffer.h>
+ 
+ #include <android/hardware/camera/device/1.0/ICameraDevice.h>
+ #ifdef QTI_CAMERA_DEVICE
+@@ -156,6 +157,23 @@ private:
+         sp<ICameraDevicePreviewCallback> mPreviewCallback = nullptr;
+         std::unordered_map<uint64_t, buffer_handle_t> mCirculatingBuffers;
+         std::unordered_map<buffer_handle_t*, uint64_t> mBufferIdMap;
++
++        /*
++         * MediaTek's legacy camera1 HAL recovers the ANativeWindowBuffer from
++         * the buffer_handle_t* that dequeue_buffer hands back, by offsetting
++         * from the address of its `handle` member - which is what a real
++         * ANativeWindow returns. Handing back a pointer to a standalone
++         * buffer_handle_t makes that arithmetic produce garbage, and the blob
++         * then calls incRef through it:
++         *   sp<ANativeWindowBuffer>::operator= <- NSDisplayClient::StreamImgBuf
++         * So wrap each imported handle in a GraphicBuffer and return
++         * &gb->handle. Geometry is recorded by set_buffers_geometry, which the
++         * HAL always calls before dequeuing.
++         */
++        std::unordered_map<uint64_t, sp<GraphicBuffer>> mWrappedBuffers;
++        uint32_t mBufferWidth = 0;
++        uint32_t mBufferHeight = 0;
++        int mBufferFormat = 0;
+     } mHalPreviewWindow;
+ 
+     // gating access to mDevice, mInitFail, mDisconnected

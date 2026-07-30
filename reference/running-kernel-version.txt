@@ -1,0 +1,1 @@
+Linux version 4.9.337-gc374d6392fa0 (nobody@android-build) (gcc version 6.3.1 20170109 (Linaro GCC 6.3-2017.02) ) #28 SMP PREEMPT Sat Apr 18 22:28:42 CEST 2026

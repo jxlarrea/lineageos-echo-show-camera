@@ -1,0 +1,61 @@
+diff --git a/camera/CameraParameters.cpp b/camera/CameraParameters.cpp
+index de8ac2f..5506534 100644
+--- a/camera/CameraParameters.cpp
++++ b/camera/CameraParameters.cpp
+@@ -182,21 +182,51 @@ CameraParameters::~CameraParameters()
+ {
+ }
+ 
++// Legacy vendor HALs can leave a String8 in the map whose SharedBuffer has
++// mSize == 0, a state the pre-sanitizer String8 treated as an empty string.
++// libutils is now built with the integer sanitizer, so String8::length()
++// underflows and aborts on such a value. Inspect the raw buffer instead of
++// asking String8, and skip entries that would trap.
++static bool isSaneParamString(const String8& s, const char** outPtr,
++                              uint32_t* outSize) {
++    const char* p = *reinterpret_cast<const char* const*>(&s);
++    *outPtr = p;
++    *outSize = 0;
++    if (p == nullptr) return false;
++    // SharedBuffer header precedes the data; mSize sits 12 bytes before it
++    // on 32-bit builds (16-byte header, mSize at offset 4).
++    const uint32_t sz = reinterpret_cast<const uint32_t*>(p)[-3];
++    *outSize = sz;
++    return sz != 0 && p[sz - 1] == '\0';
++}
++
+ String8 CameraParameters::flatten() const
+ {
+     String8 flattened("");
+     size_t size = mMap.size();
++    bool first = true;
+ 
+     for (size_t i = 0; i < size; i++) {
+-        String8 k, v;
+-        k = mMap.keyAt(i);
+-        v = mMap.valueAt(i);
++        const String8& k = mMap.keyAt(i);
++        const String8& v = mMap.valueAt(i);
++
++        const char* kp; uint32_t ksz;
++        const char* vp; uint32_t vsz;
++        const bool kOk = isSaneParamString(k, &kp, &ksz);
++        const bool vOk = isSaneParamString(v, &vp, &vsz);
++        if (!kOk || !vOk) {
++            ALOGE("flatten: skipping malformed entry %zu/%zu: "
++                  "key %p (size %u%s%s%s), value %p (size %u)",
++                  i, size, kp, ksz, kOk ? ", \"" : "", kOk ? kp : "",
++                  kOk ? "\"" : "", vp, vsz);
++            continue;
++        }
+ 
++        if (!first) flattened += ";";
++        first = false;
+         flattened += k;
+         flattened += "=";
+         flattened += v;
+-        if (i != size-1)
+-            flattened += ";";
+     }
+ 
+     return flattened;

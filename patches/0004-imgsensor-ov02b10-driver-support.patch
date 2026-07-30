@@ -1,0 +1,94 @@
+diff --git a/arch/arm64/configs/cronos_defconfig b/arch/arm64/configs/cronos_defconfig
+index 761a79fbc488..542dbdb6ae6e 100644
+--- a/arch/arm64/configs/cronos_defconfig
++++ b/arch/arm64/configs/cronos_defconfig
+@@ -111,7 +111,7 @@ CONFIG_VS_BACKLIGHT_COOLER=y
+ CONFIG_THERMAL_CRONOS=y
+ CONFIG_MTK_TMP103=y
+ CONFIG_MTK_PSCI=y
+-CONFIG_CUSTOM_KERNEL_IMGSENSOR="ov9734_mipi_raw"
++CONFIG_CUSTOM_KERNEL_IMGSENSOR="ov9734_mipi_raw ov02b10_mipi_raw"
+ CONFIG_MTK_SEC_VIDEO_PATH_SUPPORT=y
+ CONFIG_FREE_FB_BUFFER=y
+ CONFIG_MTK_VIDEOCODEC_DRIVER=y
+diff --git a/drivers/misc/mediatek/imgsensor/inc/kd_imgsensor.h b/drivers/misc/mediatek/imgsensor/inc/kd_imgsensor.h
+index 9248147d7661..ba815fe49056 100644
+--- a/drivers/misc/mediatek/imgsensor/inc/kd_imgsensor.h
++++ b/drivers/misc/mediatek/imgsensor/inc/kd_imgsensor.h
+@@ -168,6 +168,16 @@
+ #define OV9726_SENSOR_ID                        0x9726
+ #define OV9726MIPI_SENSOR_ID                    0x9726
+ #define OV9734MIPI_SENSOR_ID                    0x9734
++/*
++ * OV02B10, the sensor actually fitted to cronos (Echo Show 5 2nd gen). The
++ * stock kernel exports OV02B_MIPI_RAW_SensorInit and Amazon's HAL table lists
++ * 0x2b for ov02b10_mipi_raw and 0x2c for the _vc variant, so these are the
++ * values the HAL expects to see. kd_sensorlist.h refers to the ID by the
++ * OV02BMIPI_ spelling.
++ */
++#define OV02B_SENSOR_ID                         0x2b
++#define OV02BMIPI_SENSOR_ID                     OV02B_SENSOR_ID
++#define OV02B_III_SENSOR_ID                     0x2c
+ #define OV8865_SENSOR_ID                        0x8865
+ #define OV8858_SENSOR_ID                        0x8858
+ #define OV8858S_SENSOR_ID                      (0x8858+1)
+diff --git a/drivers/misc/mediatek/imgsensor/inc/kd_imgsensor_define.h b/drivers/misc/mediatek/imgsensor/inc/kd_imgsensor_define.h
+index 7b512ec51032..4560923b9116 100644
+--- a/drivers/misc/mediatek/imgsensor/inc/kd_imgsensor_define.h
++++ b/drivers/misc/mediatek/imgsensor/inc/kd_imgsensor_define.h
+@@ -11,7 +11,17 @@
+  * GNU General Public License for more details.
+  */
+ 
+-#ifdef CONFIG_CHECKERS
++/*
++ * Amazon's camera HAL is built against these struct layouts on every
++ * MT8163 Echo Show device, not just checkers. ACDK_SENSOR_INFO_STRUCT
++ * differs from upstream MediaTek's by 20 SensorGrabStart* fields and a
++ * reordering, and the kernel writes it through the pointer the HAL hands
++ * over in KDIMGSENSORIOC_X_GETINFO - so a mismatch feeds the HAL garbage
++ * rather than failing cleanly. ACDK_SENSOR_MCLK_STRUCT also shrinks to the
++ * 8 bytes the HAL encodes into SET_MCLK_PLL's ioctl number.
++ */
++#if defined(CONFIG_CHECKERS) || defined(CONFIG_CRONOS) || \
++	defined(CONFIG_CROWN) || defined(CONFIG_ROOK)
+ #include "kd_imgsensor_define_checkers.h"
+ #else
+ #include "kd_imgsensor_define_default.h"
+diff --git a/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.h b/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.h
+index 40278e7a70ee..80af6d0e93c1 100644
+--- a/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.h
++++ b/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.h
+@@ -47,6 +47,8 @@ UINT32 OV9724_MIPI_RAW_SensorInit(
+ 	struct SENSOR_FUNCTION_STRUCT **pfFunc);
+ UINT32 OV9734_MIPI_RAW_SensorInit(
+ 	struct SENSOR_FUNCTION_STRUCT **pfFunc);
++UINT32 OV02B_MIPI_RAW_SensorInit(
++	struct SENSOR_FUNCTION_STRUCT **pfFunc);
+ UINT32 OV8865_MIPI_RAW_SensorInit(
+ 	struct SENSOR_FUNCTION_STRUCT **pfFunc);
+ UINT32 OV8858_MIPI_RAW_SensorInit(
+@@ -338,14 +340,19 @@ struct ACDK_KD_SENSOR_INIT_FUNCTION_STRUCT
+ 	{OV9726MIPI_SENSOR_ID, SENSOR_DRVNAME_OV9726_MIPI_RAW,
+ 		OV9726MIPI_RAW_SensorInit},
+ #endif
+-#if defined(OV9734_MIPI_RAW)
+-	{OV9734MIPI_SENSOR_ID, SENSOR_DRVNAME_OV9734_MIPI_RAW,
+-		OV9734_MIPI_RAW_SensorInit},
+-#endif
++/*
++ * OV02B10 first: the HAL identifies the sensor by its index into this table and
++ * its own copy (libcameracustom.so) lists ov02b10 at index 0. OV9734 stays
++ * compiled in because dropping it stops the kernel booting.
++ */
+ #if defined(OV02B10_MIPI_RAW)
+         {OV02BMIPI_SENSOR_ID, SENSOR_DRVNAME_OV02B_MIPI_RAW,
+                 OV02B_MIPI_RAW_SensorInit},
+ #endif
++#if defined(OV9734_MIPI_RAW)
++	{OV9734MIPI_SENSOR_ID, SENSOR_DRVNAME_OV9734_MIPI_RAW,
++		OV9734_MIPI_RAW_SensorInit},
++#endif
+ #if defined(OV9724_MIPI_RAW)
+ 	{OV9724_SENSOR_ID, SENSOR_DRVNAME_OV9724_MIPI_RAW,
+ 		OV9724_MIPI_RAW_SensorInit},

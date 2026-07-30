@@ -1,0 +1,15 @@
+# Device backups, session logs, and build outputs are local-only.
+backups/
+logs/
+prebuilt-artifacts/
+
+# Build outputs, including bionic libraries pulled from the device
+# (proprietary; the build scripts re-pull them from the target).
+tools/cmdq-trace/out/
+shims/*/out/
+
+# Editor workspace
+*.code-workspace
+
+# Local AI tooling config
+.claude/

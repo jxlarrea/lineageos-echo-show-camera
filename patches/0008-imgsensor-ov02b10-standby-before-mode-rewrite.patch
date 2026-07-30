@@ -1,0 +1,129 @@
+imgsensor: ov02b10: stand by before rewriting mode registers
+
+The mode tables reprogram PLL and timing (page 1 0x0e/0x0f, 0x14/0x15), and
+the setters are reached mid-stream on a preview->capture switch. Putting the
+sensor in standby around that is the sequence the hardware expects; the
+reference driver got it for free from the newer imgsensor framework issuing
+SENSOR_FEATURE_SET_STREAMING_SUSPEND/RESUME, which this platform's HAL never
+sends.
+
+Tried as a fix for takePicture timing out on ISP_WAIT_IRQ and it did NOT fix
+that - see docs/findings.md. Kept only because the sequence is correct.
+
+--- a/drivers/misc/mediatek/imgsensor/src/mt8163/ov02b10_mipi_raw/ov02b10mipiraw_Sensor.c
++++ b/drivers/misc/mediatek/imgsensor/src/mt8163/ov02b10_mipi_raw/ov02b10mipiraw_Sensor.c
+@@ -591,6 +591,22 @@
+ 
+ static void preview_setting(void)
+ {
++	/* Put the sensor in standby before rewriting the mode registers.
++	 *
++	 * These tables reprogram PLL and timing (page 1 0x0e/0x0f, 0x14/0x15),
++	 * and the mode setters are reached mid-stream on a preview->capture
++	 * switch, so this is the sequence the hardware expects. The reference
++	 * driver got it from the newer imgsensor framework issuing
++	 * SENSOR_FEATURE_SET_STREAMING_SUSPEND/RESUME around a mode change,
++	 * which this platform's HAL never sends, so bracket it here instead.
++	 *
++	 * NOTE: this was tried as a fix for takePicture timing out on
++	 * ISP_WAIT_IRQ (pass 1 TG1_DON, status 0x400) and it did NOT fix it -
++	 * the capture still times out identically. Kept because standby before
++	 * reprogramming is correct regardless, but do not mistake it for a fix.
++	 */
++	streaming_control(KAL_FALSE);
++
+ 
+ 	write_cmos_sensor(0xfc, 0x01);
+ 	write_cmos_sensor(0xfd, 0x00);
+@@ -696,6 +712,22 @@
+ 
+ static void capture_setting(kal_uint16 currefps)
+ {
++	/* Put the sensor in standby before rewriting the mode registers.
++	 *
++	 * These tables reprogram PLL and timing (page 1 0x0e/0x0f, 0x14/0x15),
++	 * and the mode setters are reached mid-stream on a preview->capture
++	 * switch, so this is the sequence the hardware expects. The reference
++	 * driver got it from the newer imgsensor framework issuing
++	 * SENSOR_FEATURE_SET_STREAMING_SUSPEND/RESUME around a mode change,
++	 * which this platform's HAL never sends, so bracket it here instead.
++	 *
++	 * NOTE: this was tried as a fix for takePicture timing out on
++	 * ISP_WAIT_IRQ (pass 1 TG1_DON, status 0x400) and it did NOT fix it -
++	 * the capture still times out identically. Kept because standby before
++	 * reprogramming is correct regardless, but do not mistake it for a fix.
++	 */
++	streaming_control(KAL_FALSE);
++
+ 	write_cmos_sensor(0xfc, 0x01);
+ 	write_cmos_sensor(0xfd, 0x00);
+ 	write_cmos_sensor(0x24, 0x02);
+@@ -796,6 +828,22 @@
+ 
+ static void normal_video_setting(void)
+ {
++	/* Put the sensor in standby before rewriting the mode registers.
++	 *
++	 * These tables reprogram PLL and timing (page 1 0x0e/0x0f, 0x14/0x15),
++	 * and the mode setters are reached mid-stream on a preview->capture
++	 * switch, so this is the sequence the hardware expects. The reference
++	 * driver got it from the newer imgsensor framework issuing
++	 * SENSOR_FEATURE_SET_STREAMING_SUSPEND/RESUME around a mode change,
++	 * which this platform's HAL never sends, so bracket it here instead.
++	 *
++	 * NOTE: this was tried as a fix for takePicture timing out on
++	 * ISP_WAIT_IRQ (pass 1 TG1_DON, status 0x400) and it did NOT fix it -
++	 * the capture still times out identically. Kept because standby before
++	 * reprogramming is correct regardless, but do not mistake it for a fix.
++	 */
++	streaming_control(KAL_FALSE);
++
+ 	write_cmos_sensor(0xfc, 0x01);
+ 	write_cmos_sensor(0xfd, 0x00);
+ 	write_cmos_sensor(0x24, 0x02);
+@@ -896,6 +944,22 @@
+ 
+ static void hs_video_setting(void)
+ {
++	/* Put the sensor in standby before rewriting the mode registers.
++	 *
++	 * These tables reprogram PLL and timing (page 1 0x0e/0x0f, 0x14/0x15),
++	 * and the mode setters are reached mid-stream on a preview->capture
++	 * switch, so this is the sequence the hardware expects. The reference
++	 * driver got it from the newer imgsensor framework issuing
++	 * SENSOR_FEATURE_SET_STREAMING_SUSPEND/RESUME around a mode change,
++	 * which this platform's HAL never sends, so bracket it here instead.
++	 *
++	 * NOTE: this was tried as a fix for takePicture timing out on
++	 * ISP_WAIT_IRQ (pass 1 TG1_DON, status 0x400) and it did NOT fix it -
++	 * the capture still times out identically. Kept because standby before
++	 * reprogramming is correct regardless, but do not mistake it for a fix.
++	 */
++	streaming_control(KAL_FALSE);
++
+ 	write_cmos_sensor(0xfc, 0x01);
+ 	write_cmos_sensor(0xfd, 0x00);
+ 	write_cmos_sensor(0x24, 0x02);
+@@ -997,6 +1061,22 @@
+ 
+ static void slim_video_setting(void)
+ {
++	/* Put the sensor in standby before rewriting the mode registers.
++	 *
++	 * These tables reprogram PLL and timing (page 1 0x0e/0x0f, 0x14/0x15),
++	 * and the mode setters are reached mid-stream on a preview->capture
++	 * switch, so this is the sequence the hardware expects. The reference
++	 * driver got it from the newer imgsensor framework issuing
++	 * SENSOR_FEATURE_SET_STREAMING_SUSPEND/RESUME around a mode change,
++	 * which this platform's HAL never sends, so bracket it here instead.
++	 *
++	 * NOTE: this was tried as a fix for takePicture timing out on
++	 * ISP_WAIT_IRQ (pass 1 TG1_DON, status 0x400) and it did NOT fix it -
++	 * the capture still times out identically. Kept because standby before
++	 * reprogramming is correct regardless, but do not mistake it for a fix.
++	 */
++	streaming_control(KAL_FALSE);
++
+ 	write_cmos_sensor(0xfc, 0x01);
+ 	write_cmos_sensor(0xfd, 0x00);
+ 	write_cmos_sensor(0x24, 0x02);

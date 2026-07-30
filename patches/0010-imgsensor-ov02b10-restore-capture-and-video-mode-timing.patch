@@ -1,0 +1,95 @@
+imgsensor: ov02b10: restore the capture and video mode timing structs
+
+takePicture never delivered a JPEG. The stall reproduced as three 500 ms
+ISP_WAIT_IRQ timeouts (PASS1_TG1_DON twice, then VS1) with IrqStatus(0), no
+error interrupt anywhere, and the ISP registers configured correctly, which
+is what made it look like an ISP or IMGO path problem. It is the sensor.
+
+The reference driver this port came from ships with the .cap1,
+.normal_video, .hs_video and .slim_video entries of imgsensor_info inside
+one comment block, so all four read as zeros. capture() takes the cap1
+branch whenever current_fps != 300, and AE lowers the preview frame rate
+indoors, so on a real device that branch is always taken: pclk, line_length,
+frame_length and min_frame_length all become 0.
+
+The first AE exposure write then does this in write_shutter():
+
+  shutter > imgsensor.min_frame_length - margin   [0u - 7: false, unsigned]
+  -> imgsensor.frame_length stays 0
+  reg 0x14/0x15 = frame_length - 0x4c4            [0 - 1220 = 0xfb3c]
+
+64316 dummy lines on a 1220-line base is a 65536-line frame: at 27.15 us per
+line the sensor emits one frame every 1.78 s. Measured VS1 interrupts during
+the stall arrived exactly 1.78 s apart, which is what pinned this. Every
+500 ms wait misses, the HAL gives up, and the preview restart reprograms the
+mode registers, which is why preview always recovered.
+
+Two changes:
+
+- Uncomment the four mode structs. All five modes run the same
+  1600x1200@30 register table, so they take the same values as .pre/.cap.
+  This also fixes video recording, which reads the same zeroed structs.
+
+- Floor imgsensor.frame_length at the mode base in write_shutter() and
+  set_shutter_frame_length() before the dummy-line subtraction, so no
+  future zeroed or undersized state can underflow it again.
+
+--- a/drivers/misc/mediatek/imgsensor/src/mt8163/ov02b10_mipi_raw/ov02b10mipiraw_Sensor.c
++++ b/drivers/misc/mediatek/imgsensor/src/mt8163/ov02b10_mipi_raw/ov02b10mipiraw_Sensor.c
+@@ -70,7 +70,14 @@
+ 		/*     following for GetDefaultFramerateByScenario()    */
+ 		.max_framerate = 300,
+ 	},
+-	/*
++	/* All five modes run the same 1600x1200@30 register table. These
++	 * sub-mode structs were commented out in the reference driver; with
++	 * them zeroed, capture() and the video modes load pclk=0,
++	 * line_length=0, frame_length=0, and write_shutter()'s unsigned
++	 * (frame_length - 0x4c4) dummy-line computation underflows to 0xfb3c,
++	 * slowing the sensor to one frame every 1.78 s. Every pass-1 IRQ wait
++	 * then times out and takePicture never delivers a JPEG.
++	 */
+ 	.cap1 = {
+ 		.pclk = 16500000,            //record different mode's pclk
+ 		.linelength = 448,            //record different mode's linelength
+@@ -114,7 +121,7 @@
+ 		.grabwindow_height = 1200,        //record different mode's height of grabwindow
+ 		.mipi_data_lp2hs_settle_dc = 85,//unit , ns
+ 		.max_framerate = 300,
+-	},*/
++	},
+ 	.margin = 7,            //sensor framelength & shutter margin
+ 	.min_shutter = 4,        //min shutter
+ 	.max_frame_length = 0x7fff,//max framelength by sensor register's limitation
+@@ -285,6 +292,15 @@
+ 		imgsensor_info.margin)) ? (imgsensor_info.max_frame_length -
+ 		imgsensor_info.margin) : shutter;
+ 
++	/* The dummy-line registers below hold (frame_length - 0x4c4),
++	 * unsigned. A frame_length under the 0x4c5 base - the zeroed state a
++	 * misconfigured mode switch leaves behind - underflows that to
++	 * ~0xfb3c dummy lines, one frame every 1.78 s, and every pass-1 IRQ
++	 * wait then times out. Floor it at the mode base.
++	 */
++	if (imgsensor.frame_length < imgsensor_info.pre.framelength)
++		imgsensor.frame_length = imgsensor_info.pre.framelength;
++
+ 	//frame_length and shutter should be an even number.
+ 	shutter = (shutter >> 1) << 1;
+ 	imgsensor.frame_length = (imgsensor.frame_length >> 1) << 1;
+@@ -1863,6 +1879,15 @@
+ 		imgsensor_info.margin)) ? (imgsensor_info.max_frame_length -
+ 		imgsensor_info.margin) : shutter;
+ 
++	/* The dummy-line registers below hold (frame_length - 0x4c4),
++	 * unsigned. A frame_length under the 0x4c5 base - the zeroed state a
++	 * misconfigured mode switch leaves behind - underflows that to
++	 * ~0xfb3c dummy lines, one frame every 1.78 s, and every pass-1 IRQ
++	 * wait then times out. Floor it at the mode base.
++	 */
++	if (imgsensor.frame_length < imgsensor_info.pre.framelength)
++		imgsensor.frame_length = imgsensor_info.pre.framelength;
++
+ 	//frame_length and shutter should be an even number.
+ 	shutter = (shutter >> 1) << 1;
+ 	imgsensor.frame_length = (imgsensor.frame_length >> 1) << 1;

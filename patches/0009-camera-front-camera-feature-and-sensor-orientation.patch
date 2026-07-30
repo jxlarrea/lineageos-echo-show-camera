@@ -1,0 +1,75 @@
+camera: advertise the front camera, and fix SENSOR_ORIENTATION
+
+Two ROM metadata bugs, both device-visible and both breaking real apps.
+
+1) The device tree copied android.hardware.camera.xml, which declares
+   android.hardware.camera - a BACK camera. These devices have a single front
+   camera and none was advertised at all. CameraX's CameraValidator only looks
+   for a back camera when FEATURE_CAMERA is advertised, so the bogus feature
+   failed validation device-wide ("Camera LensFacing verification failed") and
+   CameraX retried init forever, hanging any app that did not set an
+   availableCamerasLimiter. Copy android.hardware.camera.front.xml instead,
+   which declares camera.any + camera.front.
+
+2) The sensor is landscape-mounted, matching the landscape-natural 960x480
+   panel, and the driver flips it 180 degrees so frames arrive upright - but
+   the MediaTek HAL reports a phone-style 270, so every client that correctly
+   rotates by SENSOR_ORIENTATION produced a sideways image. The value comes
+   from DevMetaInfo::queryDeviceWantedOrientation() inside libcam.utils.so and
+   cannot be corrected in the blobs, so camera.device@1.0-impl now honours
+   ro.camera.sensor_orientation, where both HAL1 clients and the camera2
+   legacy shim pick it up.
+
+Verified on device: features correct, CameraX initialises with zero validator
+failures, dumpsys reports Orientation: 0, and captures come out upright.
+
+diff --git a/mt8163.mk b/mt8163.mk
+index 5259e13..1ab42c4 100644
+--- a/device/amazon/mt8163-common/mt8163.mk
++++ b/device/amazon/mt8163-common/mt8163.mk
+@@ -54,12 +54,21 @@ PRODUCT_PACKAGES += \
+ 
+ # Camera
+ PRODUCT_PACKAGES += \
++    android.hardware.camera.provider@2.4-impl \
+     camera.device@1.0-impl \
+     camera.device@3.2-impl \
++    libcamera_shim \
+     libsensorndkbridge
+ 
++# These devices have a single front-facing camera and no back camera, so
++# advertise camera.front rather than the plain camera.xml (which declares
++# android.hardware.camera, i.e. a back camera). Getting this wrong is not
++# cosmetic: CameraX's CameraValidator only checks for a back camera when
++# FEATURE_CAMERA is advertised, so the bogus feature made it fail device-wide
++# with "Camera LensFacing verification failed" and retry init forever in any
++# app that does not set an availableCamerasLimiter.
+ PRODUCT_COPY_FILES += \
+-    frameworks/native/data/etc/android.hardware.camera.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.xml
++    frameworks/native/data/etc/android.hardware.camera.front.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.front.xml
+ 
+ # Display
+ PRODUCT_PACKAGES += \
+diff --git a/device.mk b/device.mk
+index b50db70..aedd1e9 100644
+--- a/device/amazon/cronos/device.mk
++++ b/device/amazon/cronos/device.mk
+@@ -97,6 +97,16 @@ PRODUCT_PACKAGES += \
+ PRODUCT_COPY_FILES += \
+     $(call find-copy-subdir-files,*,$(LOCAL_PATH)/configs/wifi/,$(TARGET_COPY_OUT_VENDOR)/etc/wifi)
+ 
++# Camera
++# The OV02B10 is landscape-mounted, matching this device's landscape-natural
++# 960x480 panel, and the sensor driver flips it 180 degrees so frames arrive
++# upright. The MediaTek HAL nonetheless reports a phone-style 270, which makes
++# every client that correctly rotates by SENSOR_ORIENTATION come out sideways.
++# The value comes from inside libcam.utils.so and cannot be fixed in the blob,
++# so camera.device@1.0-impl honours this override instead.
++PRODUCT_PROPERTY_OVERRIDES += \
++    ro.camera.sensor_orientation=0
++
+ # Inherit from mt8163-common
+ $(call inherit-product, device/amazon/mt8163-common/mt8163.mk)
+ 
+(The camera.device@1.0-impl side lives in patches/0005-*, which touches the
+same file.)

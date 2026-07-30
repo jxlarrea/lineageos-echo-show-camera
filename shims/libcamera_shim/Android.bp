@@ -1,0 +1,28 @@
+//
+// Compatibility shim for the stock cronos camera blobs.
+//
+// Link this into the vendor camera libraries with LOCAL_SHARED_LIBRARIES /
+// "shim_libs" in the vendor makefile so the old mangled names resolve.
+//
+
+cc_library_shared {
+    name: "libcamera_shim",
+    proprietary: true,
+    srcs: ["camera_shim.cpp"],
+
+    shared_libs: [
+        "libui",
+        "libutils",
+        "liblog",
+    ],
+
+    // The forwarding stubs deliberately declare mangled names as extern "C"
+    // and re-export removed ones; neither is something the compiler should
+    // second-guess.
+    cflags: [
+        "-Wno-unused-parameter",
+        "-Wno-invalid-offsetof",
+    ],
+
+    compile_multilib: "32",
+}

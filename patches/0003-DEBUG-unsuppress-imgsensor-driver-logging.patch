@@ -1,0 +1,52 @@
+diff --git a/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.c b/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.c
+index ae630894c5f0..4c83970ba0de 100644
+--- a/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.c
++++ b/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.c
+@@ -135,16 +135,18 @@ struct device *sensor_device;
+ /*****************************************************************/
+ #define PFX "[kd_sensorlist]"
+ #define PK_DBG_NONE(fmt, arg...)    do {} while (0)
+-#define PK_DBG_FUNC(fmt, arg...)    pr_debug(PFX "[%s] " fmt, __func__, ##arg)
+-#define PK_INFO(fmt, arg...)    pr_debug(PFX " [%s] " fmt, __func__, ##arg)
++/* DIAGNOSTIC BUILD: this driver routes every macro, PK_ERR included, through
++ * pr_debug, so none of its diagnostics reach dmesg. Promoted to pr_err to trace
++ * the HAL's sensor search. Revert before shipping. */
++#define PK_DBG_FUNC(fmt, arg...)    pr_err(PFX "[%s] " fmt, __func__, ##arg)
++#define PK_INFO(fmt, arg...)    pr_err(PFX " [%s] " fmt, __func__, ##arg)
+ 
+-#undef DEBUG_CAMERA_HW_K
+-//#define DEBUG_CAMERA_HW_K
++#define DEBUG_CAMERA_HW_K
+ #ifdef DEBUG_CAMERA_HW_K
+ #define PK_DBG    PK_DBG_FUNC
+-#define PK_ERR(fmt, arg...)         pr_debug(PFX "[%s] " fmt, __func__, ##arg)
++#define PK_ERR(fmt, arg...)         pr_err(PFX "[%s] " fmt, __func__, ##arg)
+ #define PK_XLOG_INFO(fmt, args...) \
+-	pr_debug(PFX "[%s] " fmt, __func__, ##args)
++	pr_err(PFX "[%s] " fmt, __func__, ##args)
+ #else
+ #define PK_DBG(fmt, arg...)
+ #define PK_ERR(fmt, arg...)             pr_debug(PFX "[%s] " fmt, __func__, ##arg)
+@@ -1140,6 +1142,22 @@ int kdSetDriver(unsigned int *pDrvIndex)
+ 		return -EIO;
+ 	}
+ 
++	/* DIAGNOSTIC: dump this kernel's table so its indices can be compared
++	 * against the ones the HAL asks for. Revert before shipping. */
++	{
++		u32 dbg;
++
++		for (dbg = 0; dbg < MAX_NUM_OF_SUPPORT_SENSOR; dbg++) {
++			if (pSensorList[dbg].drvname[0] == '\0' &&
++			    pSensorList[dbg].SensorInit == NULL)
++				continue;
++			pr_err("[kd_sensorlist] TABLE[%u] id=0x%x name=%s init=%s\n",
++			       dbg, pSensorList[dbg].SensorId,
++			       pSensorList[dbg].drvname,
++			       pSensorList[dbg].SensorInit ? "yes" : "NULL");
++		}
++	}
++
+ 	for (i = KDIMGSENSOR_INVOKE_DRIVER_0;
+ 		i < KDIMGSENSOR_MAX_INVOKE_DRIVERS; i++) {
+ 		/*  */

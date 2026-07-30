@@ -1,0 +1,24 @@
+//
+// Adapter exposing the API 25 DpIspStream / DpBlitStream interface on top of
+// this ROM's Android 9 libdpframework. The module name sets the soname, which
+// must stay libdpframework_cam.so - that is what the camera blobs were
+// repointed at.
+//
+
+cc_library_shared {
+    name: "libdpframework_cam",
+    proprietary: true,
+    srcs: ["dpframework_adapter.cpp"],
+
+    shared_libs: [
+        "liblog",
+    ],
+
+    // Every entry point is a mangled name declared extern "C" so it can be
+    // re-exported verbatim; that is deliberate, not an oversight.
+    cflags: [
+        "-Wno-unused-parameter",
+    ],
+
+    compile_multilib: "32",
+}

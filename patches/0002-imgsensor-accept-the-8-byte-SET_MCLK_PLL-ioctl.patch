@@ -1,0 +1,52 @@
+diff --git a/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.c b/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.c
+index ae630894c5f0..649fe7e80639 100644
+--- a/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.c
++++ b/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.c
+@@ -2944,6 +2944,27 @@ EXPORT_SYMBOL(_hwPowerDown);
+ 
+ #endif
+ 
++#ifndef CONFIG_CHECKERS
++/*
++ * Amazon's stock camera HAL sends SET_MCLK_PLL with the 8-byte
++ * ACDK_SENSOR_MCLK_STRUCT from kd_imgsensor_define_checkers.h, while builds
++ * using kd_imgsensor_define_default.h have a 12-byte one with a trailing TG
++ * field. _IOWR encodes sizeof() into the command number, so the 8-byte form
++ * does not match KDIMGSENSORIOC_X_SET_MCLK_PLL and the HAL gets -ENOTTY; it
++ * then continues without the sensor type it needed and crashes.
++ *
++ * Only the size differs. Both layouts put "on" at offset 0 and "freq" at
++ * offset 4, kdSetSensorMclk() reads nothing else, and the ioctl entry point
++ * sizes its buffer from _IOC_SIZE(), so accepting the 8-byte command and
++ * routing it to the same handler is enough. No struct changes needed.
++ *
++ * Not defined for CONFIG_CHECKERS builds, where the struct is already 8 bytes
++ * and this would collide with the existing case label.
++ */
++#define KDIMGSENSORIOC_X_SET_MCLK_PLL_AMZN \
++	_IOC(_IOC_READ | _IOC_WRITE, IMGSENSORMAGIC, 60, 8)
++#endif
++
+ #ifdef CONFIG_COMPAT
+ 
+ static int compat_get_acdk_sensor_getinfo_struct(
+@@ -3303,6 +3324,9 @@ static long CAMERA_HW_Ioctl_Compat(struct file *filp,
+ 	case KDIMGSENSORIOC_X_RELEASE_I2C_TRIGGER_LOCK:
+ 	case KDIMGSENSORIOC_X_SET_SHUTTER_GAIN_WAIT_DONE:
+ 	case KDIMGSENSORIOC_X_SET_MCLK_PLL:
++#ifndef CONFIG_CHECKERS
++	case KDIMGSENSORIOC_X_SET_MCLK_PLL_AMZN:
++#endif
+ 	case KDIMGSENSORIOC_X_SET_CURRENT_SENSOR:
+ 	case KDIMGSENSORIOC_X_SET_GPIO:
+ 	case KDIMGSENSORIOC_X_GET_ISP_CLK:
+@@ -3408,6 +3432,9 @@ static long CAMERA_HW_Ioctl(struct file *a_pstFile,
+ 		break;
+ 
+ 	case KDIMGSENSORIOC_X_SET_MCLK_PLL:
++#ifndef CONFIG_CHECKERS
++	case KDIMGSENSORIOC_X_SET_MCLK_PLL_AMZN:
++#endif
+ 		i4RetValue = kdSetSensorMclk(pBuff);
+ 		break;
+ 
