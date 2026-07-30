@@ -62,30 +62,57 @@ breakfast lineage_cronos-userdebug
 
 You need roughly 150 GB of disk.
 
-## Step 3: apply the kernel patches
+## Step 3: prepare the kernel
+
+Three things go into the kernel, in this exact order. Run each command
+separately and read its output.
 
 ```sh
 cd ~/lineage-18.1/kernel/amazon/mt8163-4.9
-for p in 0001 0004 0007 0008 0010; do
-    patch -p1 < ~/lineageos-echo-show-camera/patches/${p}-*.patch
-done
+
+# 3.1  Amazon's kernel struct layouts (every Echo Show device needs this;
+#      without it cameraserver crash-loops on the first ioctl)
+patch -p1 < ~/lineageos-echo-show-camera/patches/0001-imgsensor-use-the-Amazon-struct-layouts-on-all-echo-show.patch
+
+# 3.2  The OV02B10 sensor driver itself (cronos only). This is a complete
+#      driver directory, shipped as a tarball rather than a patch:
+tar xzf ~/lineageos-echo-show-camera/patches/ov02b10_mipi_raw-driver.tar.gz \
+    -C drivers/misc/mediatek/imgsensor/src/mt8163/
+
+# 3.3  Wire the driver into the build: sensor IDs, sensor list entry, and
+#      the defconfig (cronos only)
+patch -p1 < ~/lineageos-echo-show-camera/patches/0004-imgsensor-ov02b10-driver-support.patch
 ```
 
-Notes:
+Each `patch` command lists the files it modified. If you see `FAILED` or a
+`.rej` file is created, you are in the wrong directory or the wrong tree
+state - stop and sort that out before building.
 
-- 0002 is an alternative to 0001 for experiments; never apply both.
-- 0003 is debug logging only; skip it for a normal build.
-- For `checkers`/`crown` (OV9734 devices) apply only 0001.
-
-Select the sensor in the defconfig:
+Verify:
 
 ```sh
-cd ~/lineage-18.1/kernel/amazon/mt8163-4.9
-sed -i 's/CONFIG_CUSTOM_KERNEL_IMGSENSOR=.*/CONFIG_CUSTOM_KERNEL_IMGSENSOR="ov02b10_mipi_raw"/' \
-    arch/arm64/configs/cronos_defconfig
 grep CONFIG_CUSTOM_KERNEL_IMGSENSOR arch/arm64/configs/cronos_defconfig
-# CONFIG_CUSTOM_KERNEL_IMGSENSOR="ov02b10_mipi_raw"
+# CONFIG_CUSTOM_KERNEL_IMGSENSOR="ov9734_mipi_raw ov02b10_mipi_raw"
+
+ls drivers/misc/mediatek/imgsensor/src/mt8163/ov02b10_mipi_raw/
+# Makefile  ov02b10mipiraw_Sensor.c  ov02b10mipiraw_Sensor.h
 ```
+
+Things NOT to do in this step, because each looks plausible:
+
+- **Do not apply patches 0007, 0008 or 0010.** They document how the
+  driver fixes were developed; the tarball from 3.2 already contains all
+  of them, and applying them on top fails with "already applied".
+- **Do not apply 0002.** It is a narrower alternative to 0001 kept for
+  the record; the two conflict and will not compile together.
+- **Do not edit the defconfig by hand.** 0004 sets it to compile both
+  sensor drivers, which is the verified configuration: the HAL binds the
+  OV02B10 correctly, and keeping the OV9734 driver compiled costs
+  nothing.
+- 0003 is driver bring-up debug logging; skip it for a normal build.
+
+For `checkers`/`crown` (OV9734 devices): apply only 0001 and skip 3.2 and
+3.3 entirely; their sensor driver is already in the tree and selected.
 
 ## Step 4: apply the ROM patches
 

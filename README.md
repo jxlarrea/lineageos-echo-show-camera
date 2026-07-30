@@ -82,24 +82,20 @@ next layer would otherwise hit.
 
 ### Layer 1: kernel
 
-Apply to `kernel/amazon/mt8163-4.9`:
+Three things go into `kernel/amazon/mt8163-4.9`, in order:
 
-```
-patches/0001-imgsensor-use-the-Amazon-struct-layouts-on-all-echo-show.patch
-patches/0004-imgsensor-ov02b10-driver-support.patch
-patches/0007-imgsensor-ov02b10-mirror-flip-180-rotation.patch
-patches/0008-imgsensor-ov02b10-standby-before-mode-rewrite.patch
-patches/0010-imgsensor-ov02b10-restore-capture-and-video-mode-timing.patch
-```
+1. `patches/0001-imgsensor-use-the-Amazon-struct-layouts-on-all-echo-show.patch`
+   (every Echo Show device)
+2. `patches/ov02b10_mipi_raw-driver.tar.gz` unpacked into
+   `drivers/misc/mediatek/imgsensor/src/mt8163/` - the complete OV02B10
+   driver, with all its fixes already included (cronos only)
+3. `patches/0004-imgsensor-ov02b10-driver-support.patch` - sensor IDs,
+   sensor list entry, defconfig (cronos only)
 
-(0002 is an alternative to 0001 and must NOT be applied together with it;
-0003 is debug logging only. See [patches/README.md](patches/README.md).)
-
-Set the sensor in `cronos_defconfig`:
-
-```
-CONFIG_CUSTOM_KERNEL_IMGSENSOR="ov02b10_mipi_raw"
-```
+Do not additionally apply 0007/0008/0010 (already inside the driver
+tarball; they document how the fixes were developed), do not apply 0002
+(a conflicting alternative to 0001), and do not edit the defconfig by
+hand - 0004 sets the verified configuration. 0003 is debug logging only.
 
 Build the boot image (`mka bootimage`), then flash it with
 `scripts/flash-boot.sh <adb-serial>`.
