@@ -253,7 +253,12 @@ patch -p1 < ~/lineageos-echo-show-camera/patches/0006-*.patch
 
 cd ~/lineage-18.1
 patch -p1 < ~/lineageos-echo-show-camera/patches/0011-*.patch
+patch -p1 < ~/lineageos-echo-show-camera/patches/0012-*.patch
 ```
+
+0012 is a host-environment fix rather than a camera one: it lets
+`MKE2FS_CONFIG` reach `mke2fs`, without which the ART apex fails to build
+on any distribution shipping a recent e2fsprogs (see step 7).
 
 0011 changes the device tree: the camera provider declaration in the vintf
 manifest, the provider packages, the front-camera feature file, the HAL1

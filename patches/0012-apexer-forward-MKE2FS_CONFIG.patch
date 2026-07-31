@@ -1,0 +1,84 @@
+apexer: let MKE2FS_CONFIG through to mke2fs
+
+apexer builds the apex payload with the tree's own mke2fs (e2fsprogs
+1.45.4, 2019), but RunCommand replaces the environment wholesale with a
+single variable, so mke2fs finds no MKE2FS_CONFIG and falls back to the
+host's /etc/mke2fs.conf.
+
+On a current distribution that config enables filesystem features the
+2019 binary rejects:
+
+    Invalid filesystem option set: has_journal,extent,huge_file,flex_bg,
+    metadata_csum,metadata_csum_seed,64bit,dir_nlink,extra_isize,orphan_file
+
+which fails the ART apex and stops the build at 97%. Debian 13 is what
+this was hit on; anything shipping e2fsprogs 1.47 or newer will do it.
+
+Forwarding MKE2FS_CONFIG when it is set lets the build point mke2fs at
+the tree's own system/extras/ext4_utils/mke2fs.conf. Setting nothing
+leaves the previous behaviour untouched.
+
+Apply from the source tree root:
+    patch -p1 < 0012-apexer-forward-MKE2FS_CONFIG.patch
+
+diff --git a/system/apex/apexer/apexer.py b/system/apex/apexer/apexer.py
+index f698c8c..cf4c87d 100644
+--- a/system/apex/apexer/apexer.py
++++ b/system/apex/apexer/apexer.py
+@@ -428,6 +428,22 @@ def AddLoggingParent(android_manifest, logging_parent_value):
+       write_xml(temp, doc)
+       return temp.name
+ 
++def _e2fsprogs_env():
++  """Environment for the tree's e2fsprogs tools.
++
++  RunCommand replaces the environment wholesale, so mke2fs would fall back
++  to the host's /etc/mke2fs.conf. The tree's mke2fs is from 2019 and a
++  current distribution's config enables features it rejects outright
++  ("Invalid filesystem option set: ... metadata_csum_seed,orphan_file").
++  Forwarding MKE2FS_CONFIG lets the caller point it at the tree's own
++  system/extras/ext4_utils/mke2fs.conf.
++  """
++  env = {'E2FSPROGS_FAKE_TIME': '1'}
++  if os.environ.get('MKE2FS_CONFIG'):
++    env['MKE2FS_CONFIG'] = os.environ['MKE2FS_CONFIG']
++  return env
++
++
+ def CreateApex(args, work_dir):
+   if not ValidateArgs(args):
+     return False
+@@ -499,7 +515,7 @@ def CreateApex(args, work_dir):
+     cmd.extend(['-E', 'hash_seed=' + uu])
+     cmd.append(img_file)
+     cmd.append(str(size_in_mb) + 'M')
+-    RunCommand(cmd, args.verbose, {'E2FSPROGS_FAKE_TIME': '1'})
++    RunCommand(cmd, args.verbose, _e2fsprogs_env())
+ 
+     # Compile the file context into the binary form
+     compiled_file_contexts = os.path.join(work_dir, 'file_contexts.bin')
+@@ -517,7 +533,7 @@ def CreateApex(args, work_dir):
+     cmd.extend(['-C', args.canned_fs_config])
+     cmd.append('-s')  # share dup blocks
+     cmd.append(img_file)
+-    RunCommand(cmd, args.verbose, {'E2FSPROGS_FAKE_TIME': '1'})
++    RunCommand(cmd, args.verbose, _e2fsprogs_env())
+ 
+     cmd = ['e2fsdroid']
+     cmd.append('-e')  # input is not android_sparse_file
+@@ -527,13 +543,13 @@ def CreateApex(args, work_dir):
+     cmd.extend(['-C', args.canned_fs_config])
+     cmd.append('-s')  # share dup blocks
+     cmd.append(img_file)
+-    RunCommand(cmd, args.verbose, {'E2FSPROGS_FAKE_TIME': '1'})
++    RunCommand(cmd, args.verbose, _e2fsprogs_env())
+ 
+     # Resize the image file to save space
+     cmd = ['resize2fs']
+     cmd.append('-M')  # shrink as small as possible
+     cmd.append(img_file)
+-    RunCommand(cmd, args.verbose, {'E2FSPROGS_FAKE_TIME': '1'})
++    RunCommand(cmd, args.verbose, _e2fsprogs_env())
+ 
+     if args.unsigned_payload_only:
+       shutil.copyfile(img_file, args.output)
