@@ -17,3 +17,6 @@ shims/*/out/
 
 # Local AI tooling config
 .claude/
+
+# Original camera-roll captures; the encoded demo is committed instead.
+assets/2026*.mp4
