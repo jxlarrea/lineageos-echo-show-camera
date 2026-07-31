@@ -28,10 +28,6 @@ device gets:
  <img src="assets/camera-snapshot.jpg" width="650"/>
 </p>
 
-*Opening the camera app and taking a photo on a `cronos` running this work.
-Click to play (or download
-[assets/camera-demo-720p.mp4](assets/camera-demo-720p.mp4)).*
-
 Everything here was reverse-engineered against a live device; the complete
 investigation, including every dead end, is in
 [docs/findings.md](docs/findings.md). It is long, but if you maintain a
