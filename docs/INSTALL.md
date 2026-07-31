@@ -143,8 +143,23 @@ breakfast lineage_cronos-userdebug
 [docs/building.md](building.md) explains each manifest correction and the
 missing-toolchain problem you may hit next.
 
-The sync moves roughly 145 GB and takes hours; `-j8` is deliberate, since
-more parallel fetches mostly earn dropped connections.
+The sync moves roughly 75 GB and takes hours; `-j8` is deliberate, since
+more parallel fetches mostly earn dropped connections. The build then adds
+tens of GB more on top.
+
+Sanity-check the sync before moving on - a tree that is missing projects
+fails much later, in a way that does not name the cause:
+
+```sh
+for d in build frameworks/av hardware/interfaces prebuilts/tools \
+         prebuilts/clang kernel/amazon/mt8163-4.9 device/amazon/cronos; do
+    [ -d "$d" ] || echo "MISSING: $d"
+done
+```
+
+`prebuilts/tools` in particular carries jars that dozens of modules
+depend on; without it Soong stops in seconds with a wall of "depends on
+undefined module".
 
 ## Step 3: prepare the kernel
 
