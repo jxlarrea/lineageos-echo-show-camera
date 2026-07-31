@@ -211,3 +211,47 @@ index 2b35a73..927ded0 100644
      } mHalPreviewWindow;
  
      // gating access to mDevice, mInitFail, mDisconnected
+diff --git a/camera/provider/2.4/default/Android.bp b/camera/provider/2.4/default/Android.bp
+index a2566f1..b17f307 100644
+--- a/camera/provider/2.4/default/Android.bp
++++ b/camera/provider/2.4/default/Android.bp
+@@ -6,6 +6,7 @@ cc_library_shared {
+     shared_libs: [
+         "android.hardware.camera.common@1.0",
+         "android.hardware.camera.device@1.0",
++        "libui",
+         "android.hardware.camera.device@3.2",
+         "android.hardware.camera.device@3.3",
+         "android.hardware.camera.device@3.4",
+@@ -46,6 +47,7 @@ cc_library_shared {
+     shared_libs: [
+         "android.hardware.camera.common@1.0",
+         "android.hardware.camera.device@1.0",
++        "libui",
+         "android.hardware.camera.device@3.2",
+         "android.hardware.camera.device@3.3",
+         "android.hardware.camera.device@3.4",
+@@ -91,6 +93,7 @@ cc_library_shared {
+     shared_libs: [
+         "android.hardware.camera.common@1.0",
+         "android.hardware.camera.device@1.0",
++        "libui",
+         "android.hardware.camera.device@3.2",
+         "android.hardware.camera.device@3.3",
+         "android.hardware.camera.device@3.4",
+@@ -139,6 +142,7 @@ cc_defaults {
+     shared_libs: [
+         "android.hardware.camera.common@1.0",
+         "android.hardware.camera.device@1.0",
++        "libui",
+         "android.hardware.camera.device@3.2",
+         "android.hardware.camera.device@3.3",
+         "android.hardware.camera.device@3.4",
+@@ -213,6 +217,7 @@ cc_binary {
+     shared_libs: [
+         "android.hardware.camera.common@1.0",
+         "android.hardware.camera.device@1.0",
++        "libui",
+         "android.hardware.camera.device@3.2",
+         "android.hardware.camera.device@3.3",
+         "android.hardware.camera.device@3.4",
