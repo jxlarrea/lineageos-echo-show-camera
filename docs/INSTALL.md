@@ -14,7 +14,7 @@ Throughout, replace:
 Time budget: the source tree sync and first ROM build dominate (hours,
 depending on hardware and bandwidth). Everything else is minutes.
 
-## Step 0: check your starting point
+## Step 0: starting point, host dependencies, and backups
 
 You need an Echo Show 5 2nd gen (`cronos`) that:
 
@@ -32,6 +32,62 @@ adb -s <serial> root && adb -s <serial> shell id      # uid=0(root)
 
 If any of that fails, stop and fix it first. If you cannot boot TWRP, do not
 proceed at all: a bad flash with no recovery path bricks the device.
+
+### Host dependencies
+
+On Debian/Ubuntu (Debian 13 is what this was developed on):
+
+```sh
+sudo apt update
+sudo apt install -y \
+    bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
+    git git-lfs gnupg gperf imagemagick libelf-dev liblz4-tool \
+    libncurses-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop \
+    pngcrush python3 python-is-python3 rsync schedtool squashfs-tools \
+    unzip xsltproc zip zlib1g-dev adb
+```
+
+Plus the `repo` tool if you do not have it:
+
+```sh
+mkdir -p ~/.local/bin
+curl -o ~/.local/bin/repo https://storage.googleapis.com/git-repo-downloads/repo
+chmod +x ~/.local/bin/repo
+export PATH=~/.local/bin:$PATH
+```
+
+On older releases some 32-bit dev packages carry different names
+(`lib32ncurses5-dev`, `lib32z1-dev`); install whatever your release calls
+them if the build later complains about missing 32-bit libraries.
+
+### Back up the device first
+
+Do this before touching anything. The scripts here back up what they
+modify, but a full pre-project backup is what saves you if something goes
+sideways in a way nobody predicted.
+
+1. **Full TWRP backup.** Boot into TWRP, choose Backup, select at least
+   Boot, System and Vendor, and back up to external storage (or to
+   `/sdcard` and then pull it). This is your restore point for everything
+   the ROM layers touch.
+
+2. **Raw boot partition image**, pulled to your host:
+
+```sh
+adb -s <serial> root
+adb -s <serial> shell 'dd if=/dev/block/by-name/boot of=/sdcard/boot-preproject.img'
+adb -s <serial> pull /sdcard/boot-preproject.img ./boot-preproject.img
+adb -s <serial> shell 'rm /sdcard/boot-preproject.img'
+```
+
+   Keep this file somewhere safe. It preserves the amonet exploit layout
+   exactly as it is on your working device, so restoring it from TWRP
+   (`dd` it back to `/dev/block/platform/soc/by-name/boot`) recovers from
+   any bad boot flash.
+
+3. **Know your recovery path before you need it.** Confirm you can
+   actually get into TWRP right now (power + volume key combination, or
+   `adb reboot recovery`), not just that it is installed.
 
 ## Step 1: clone this repository
 
