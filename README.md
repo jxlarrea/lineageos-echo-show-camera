@@ -18,7 +18,7 @@ device gets:
 
 ## The camera working on an Echo Show 5, 2nd gen
 
-https://github.com/jxlarrea/lineageos-echo-show-camera/raw/main/assets/camera-demo-720p.mp4
+[!Demo Video](https://github.com/jxlarrea/lineageos-echo-show-camera/raw/main/assets/camera-demo-720p.mp4)
 
 ## Actual frame quality
 
