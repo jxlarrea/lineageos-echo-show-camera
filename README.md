@@ -60,8 +60,10 @@ to the OV02B10.
 
 ## Prerequisites
 
-- An Echo Show 5 2nd gen already running unofficial LineageOS 18.1 from
-  [amazon-oss](https://github.com/amazon-oss) (R0rt1z2's port),
+- An Echo Show 5 2nd gen already running R0rt1z2's unofficial LineageOS
+  18.1 port -
+  [lineage-18.1-cronos-v0.3](https://github.com/amazon-oss/releases/releases/tag/lineage-18.1-cronos-v0.3)
+  from [amazon-oss/releases](https://github.com/amazon-oss/releases) -
   amonet-unlocked, with TWRP intact. If you cannot boot TWRP, stop: some of
   these steps can brick a device that has no recovery path.
 - A Linux host with `adb`, network adb access to the device, and `python3`.
@@ -257,6 +259,24 @@ Learned the hard way; both of these can take the device down completely.
 | [shims/libcmdqevent/](shims/libcmdqevent/) | LD_PRELOAD shim: cmdq event-id translation, AWB output correction, diagnostic tracers |
 | [scripts/](scripts/) | Fetching, patching, installing, flashing, calibration |
 | [tools/cmdq-trace/](tools/cmdq-trace/) | On-device diagnostic tools (ioctl tracers, ISP register/IRQ probes, sensor register poke) |
+
+## Upstream
+
+This work sits on top of R0rt1z2's LineageOS ports for the MT8163 Amazon
+devices, which is what makes any of it possible:
+
+| | |
+| --- | --- |
+| Releases (flashable ROMs) | [amazon-oss/releases](https://github.com/amazon-oss/releases) |
+| Echo Show 5 2nd gen build | [lineage-18.1-cronos-v0.3](https://github.com/amazon-oss/releases/releases/tag/lineage-18.1-cronos-v0.3) |
+| Manifests for building | [amazon-oss/local_manifests](https://github.com/amazon-oss/local_manifests) |
+| Device tree | [android_device_amazon_cronos](https://github.com/amazon-oss/android_device_amazon_cronos) |
+| Common device tree | [android_device_amazon_mt8163-common](https://github.com/amazon-oss/android_device_amazon_mt8163-common) |
+| Kernel | [android_kernel_amazon_mt8163](https://github.com/amazon-oss/android_kernel_amazon_mt8163) |
+| Maintainer | [R0rt1z2](https://github.com/R0rt1z2) |
+
+The patches here are written against those trees. Nothing in this
+repository replaces the port - it adds the camera to it.
 
 ## Credit
 
