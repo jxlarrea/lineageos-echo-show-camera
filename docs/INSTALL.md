@@ -461,9 +461,9 @@ the same model, but panel aging and lighting differ. If greys look tinted:
 
 ```sh
 # too magenta under warm light: lower r.warm by 2-3; too green: raise it
-adb -s <serial> shell setprop persist.camera.awbtrim.r.warm 431
+adb -s <serial> shell setprop persist.camera.awbtrim.r.warm 564
 # blue axis, same logic
-adb -s <serial> shell setprop persist.camera.awbtrim.b.warm 412
+adb -s <serial> shell setprop persist.camera.awbtrim.b.warm 536
 # under daylight, use the cool anchors instead:
 #   persist.camera.awbtrim.r / persist.camera.awbtrim.b
 ```

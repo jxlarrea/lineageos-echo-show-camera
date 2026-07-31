@@ -786,11 +786,25 @@ Four 512-based multipliers control it, re-read every 64 frames so tuning
 needs no restart:
 
 ```
-persist.camera.awbtrim.r        390    cool anchor (daylight)
-persist.camera.awbtrim.b        532
-persist.camera.awbtrim.r.warm   435    warm anchor (2600K LED)
-persist.camera.awbtrim.b.warm   408
+persist.camera.awbtrim.r        507    cool anchor (daylight)
+persist.camera.awbtrim.b        692
+persist.camera.awbtrim.r.warm   564    warm anchor (2600K LED)
+persist.camera.awbtrim.b.warm   536
 ```
+
+**Recalibrated after the black-level fix.** The anchors above replace an
+earlier set (390/532 cool, 431/412 warm) measured while the OBC pedestal
+was still lifting every frame, which biased the statistics AWB reads and
+left a visible green cast. Raising all four by 30% removed it: on a grey
+wall the render went from R/G 0.91, B/G 0.82 - both channels below green,
+which is what a green cast is - to R/G 1.02, B/G 1.00. Confirmed by eye
+as well as by measurement, and cross-checked against the same scene
+corrected by hand in Photoshop (Color Balance, green/magenta toward
+magenta).
+
+The warm anchors are verified under 2600K LED. The cool anchors were
+scaled by the same factor rather than measured, so they still want a
+daylight pass.
 
 `camera-bringup.rc` sets the defaults, calibrated against a grey ceiling
 (a grey surface is a valid neutral reference) and verified to render it

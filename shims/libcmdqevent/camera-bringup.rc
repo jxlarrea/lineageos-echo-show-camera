@@ -16,10 +16,10 @@ on post-fs-data
     # multipliers were calibrated against a grey ceiling under daylight
     # (.r/.b) and 2600K LED (.r.warm/.b.warm) and render both neutral.
     # Per-device touch-up: setprop the values and reopen the camera.
-    setprop persist.camera.awbtrim.r 390
-    setprop persist.camera.awbtrim.b 532
-    setprop persist.camera.awbtrim.r.warm 431
-    setprop persist.camera.awbtrim.b.warm 412
+    setprop persist.camera.awbtrim.r 507
+    setprop persist.camera.awbtrim.b 692
+    setprop persist.camera.awbtrim.r.warm 564
+    setprop persist.camera.awbtrim.b.warm 536
     # The camera HAL ran in mediaserver on Android 7, so the nodes it needs are
     # owned by media, while it now runs in cameraserver. Missing MTK_SMI/m4u
     # access is not benign: the ISP then DMAs through unconfigured M4U ports and
