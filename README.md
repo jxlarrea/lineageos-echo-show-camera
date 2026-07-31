@@ -16,7 +16,17 @@ device gets:
 | Adaptive auto white balance | working, with a calibrated correction |
 | Black level | corrected (the stock tuning left a 30% grey floor) |
 
-[![The camera working on an Echo Show 5, 2nd gen](assets/camera-demo-poster.jpg)](assets/camera-demo-720p.mp4)
+## The camera working on an Echo Show 5, 2nd gen
+
+<p>  
+  <video src="assets/camera-demo-720p.mp4" width="650">
+</p>
+
+## Actual frame quality
+
+<p>  
+ <img src="assets/camera-snapshot.jpg" width="650"/>
+</p>
 
 *Opening the camera app and taking a photo on a `cronos` running this work.
 Click to play (or download
