@@ -242,7 +242,8 @@ For `checkers`/`crown` (OV9734 devices): apply only 0001 and skip 3.2 and
 
 ## Step 4: apply the ROM patches
 
-Three patches against three different repositories in the tree:
+Two patches inside their own projects, then three applied from the
+tree root:
 
 ```sh
 cd ~/lineage-18.1/hardware/interfaces
@@ -250,11 +251,13 @@ patch -p1 < ~/lineageos-echo-show-camera/patches/0005-*.patch
 
 cd ~/lineage-18.1/frameworks/av
 patch -p1 < ~/lineageos-echo-show-camera/patches/0006-*.patch
-patch -p1 < ~/lineageos-echo-show-camera/patches/0013-*.patch
 
+# 0011, 0012 and 0013 carry paths relative to the tree root, so they are
+# applied from there rather than from inside a project.
 cd ~/lineage-18.1
 patch -p1 < ~/lineageos-echo-show-camera/patches/0011-*.patch
 patch -p1 < ~/lineageos-echo-show-camera/patches/0012-*.patch
+patch -p1 < ~/lineageos-echo-show-camera/patches/0013-*.patch
 ```
 
 0013 stops `cameraserver` starting at boot. That matters: the ROM ships
