@@ -102,6 +102,22 @@ cd ~/lineageos-echo-show-camera
 Follow [docs/building.md](building.md) in full; it documents two upstream
 manifest problems you will hit otherwise. Condensed:
 
+The tree needs **about 150 GB**, and the build needs tens more. Check
+before you start:
+
+```sh
+df -h ~
+```
+
+If your home directory does not have it, put the tree on a volume that
+does and symlink it, so every command below still works verbatim:
+
+```sh
+sudo mkdir -p /big/volume/lineage-18.1
+sudo chown "$USER:$USER" /big/volume/lineage-18.1
+ln -sfn /big/volume/lineage-18.1 ~/lineage-18.1
+```
+
 ```sh
 mkdir -p ~/lineage-18.1 && cd ~/lineage-18.1
 repo init -u https://github.com/LineageOS/android.git -b lineage-18.1 --depth=1
@@ -127,7 +143,8 @@ breakfast lineage_cronos-userdebug
 [docs/building.md](building.md) explains each manifest correction and the
 missing-toolchain problem you may hit next.
 
-You need roughly 150 GB of disk.
+The sync moves roughly 145 GB and takes hours; `-j8` is deliberate, since
+more parallel fetches mostly earn dropped connections.
 
 ## Step 3: prepare the kernel
 
@@ -229,7 +246,8 @@ cat patches/cronos-camera-proprietary-files.txt \
 (cd ~/lineage-18.1/device/amazon/cronos && ./setup-makefiles.sh)
 
 # 6.2  Download the stock camera stack from the public firmware dump
-#      (45 libraries, ~17 MB, into stock/lib)
+#      (45 libraries, ~17 MB, into stock/lib). These are proprietary
+#      Amazon/MediaTek binaries: stock/ is gitignored, keep it that way.
 scripts/fetch-camera-blobs.sh
 
 # 6.3  Place them at the paths the blob list declares
