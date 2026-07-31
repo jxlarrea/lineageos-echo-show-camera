@@ -47,6 +47,18 @@ sudo apt install -y \
     unzip xsltproc zip zlib1g-dev adb
 ```
 
+Then initialise Git LFS **before syncing anything**:
+
+```sh
+git lfs install
+```
+
+Some LineageOS projects store large prebuilts through LFS -
+`external/chromium-webview` is the one that matters here. Without the
+filter active at checkout time, `repo sync` writes 133-byte pointer files
+instead of the real payloads, and the build runs happily for an hour
+before failing at 97% with `failed opening zip: Invalid file`.
+
 Plus the `repo` tool if you do not have it:
 
 ```sh
@@ -160,6 +172,21 @@ done
 `prebuilts/tools` in particular carries jars that dozens of modules
 depend on; without it Soong stops in seconds with a wall of "depends on
 undefined module".
+
+Check that the LFS payloads really arrived, too:
+
+```sh
+file external/chromium-webview/prebuilt/arm/webview.apk
+# Android package (APK) - NOT "ASCII text"
+```
+
+If it says ASCII text, LFS was not active during the sync. Fix it in
+place rather than re-syncing:
+
+```sh
+git lfs install
+cd external/chromium-webview/prebuilt/arm && git lfs install --local && git lfs pull
+```
 
 ## Step 3: prepare the kernel
 
