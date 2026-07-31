@@ -6,8 +6,12 @@ starting; the [safety rules](#safety-rules) at the bottom are not optional.
 
 Throughout, replace:
 
-- `<serial>` with your device's adb serial (for network adb this looks like
-  `192.168.0.50:5555`)
+- `<serial>` with your device's adb serial, as shown by `adb devices`.
+  Over USB that is a string like `G0X1N2003600ABC`; if you use network adb
+  it looks like `192.168.0.50:5555`. Either works for everything except
+  the TWRP steps in step 8, which need USB because TWRP has no
+  networking. With a single device connected you can drop `-s <serial>`
+  entirely.
 - `~/lineage-18.1` with wherever you put the source tree
 - `~/lineageos-echo-show-camera` with wherever you cloned this repository
 

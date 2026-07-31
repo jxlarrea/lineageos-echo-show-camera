@@ -66,7 +66,9 @@ to the OV02B10.
   from [amazon-oss/releases](https://github.com/amazon-oss/releases) -
   amonet-unlocked, with TWRP intact. If you cannot boot TWRP, stop: some of
   these steps can brick a device that has no recovery path.
-- A Linux host with `adb`, network adb access to the device, and `python3`.
+- A Linux host with `adb` and `python3`, and a USB cable. USB is what
+  matters: TWRP has no networking, so the flashing steps need it. Network
+  adb (`adb connect <ip>:5555`) is convenient for the rest but optional.
 - A LineageOS 18.1 build environment for `cronos` (needed to build the
   patched boot image and the patched system libraries). Set up the source
   tree per the amazon-oss instructions; `patches/local-manifest-fixes.xml`
