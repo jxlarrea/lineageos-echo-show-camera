@@ -244,6 +244,15 @@ Things NOT to do in this step, because each looks plausible:
 For `checkers`/`crown` (OV9734 devices): apply only 0001 and skip 3.2 and
 3.3 entirely; their sensor driver is already in the tree and selected.
 
+**Those devices also need a different sensor orientation.** cronos reports
+`ro.camera.sensor_orientation=0` because its driver flips the sensor 180
+degrees in hardware; without that flip the picture comes out upside down,
+so use `180`. Change it in
+`shims/libcmdqevent/camera-bringup.rc` before step 9 (or edit
+`/system/etc/init/camera-bringup.rc` on the device and reboot). It is a
+`ro.` property, so `setprop` will not override it once set - the value has
+to come from the rc at boot.
+
 ## Step 4: apply the ROM patches
 
 Two patches inside their own projects, then three applied from the

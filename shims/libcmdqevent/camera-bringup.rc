@@ -49,4 +49,11 @@ on post-fs-data
     # and the prebuilt-overlay install, where build.prop is not replaced.
     # A ro.* property can be set here only because nothing has claimed it
     # yet; when build.prop already defines it this fails harmlessly.
+    #
+    # 0 is right for cronos ONLY because the OV02B10 driver flips the
+    # sensor 180 degrees in hardware (patches/0007). On the OV9734 devices
+    # (checkers, crown) that patch does not apply, nothing flips the
+    # sensor, and 0 leaves the picture upside down - use 180 there. This is
+    # a ro. property, so changing it means editing this line and rebooting;
+    # setprop at runtime will not override a value already set.
     setprop ro.camera.sensor_orientation 0
