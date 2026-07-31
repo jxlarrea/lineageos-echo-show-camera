@@ -411,6 +411,12 @@ Reboot into Android once and confirm it comes up before touching the boot
 partition - that way, if the next step goes wrong, you know the ROM itself
 was fine.
 
+The ROM zip already contains `boot.img`, and TWRP re-applies the amonet
+header for you on install, so the device comes up on the new kernel after
+this step alone. Running the flash script below is still worth it: it
+backs the partition up first and verifies the result byte for byte, which
+the zip install does not.
+
 Boot image second, and **only** with the flash script:
 
 ```sh
