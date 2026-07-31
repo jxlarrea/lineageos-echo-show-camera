@@ -802,9 +802,12 @@ as well as by measurement, and cross-checked against the same scene
 corrected by hand in Photoshop (Color Balance, green/magenta toward
 magenta).
 
-The warm anchors are verified under 2600K LED. The cool anchors were
-scaled by the same factor rather than measured, so they still want a
-daylight pass.
+Both anchors are now verified on device. The warm pair under uniform
+2600K LED; the cool pair under natural midday daylight the following
+morning, where the grey ceiling renders R/G 1.05, B/G 1.06-1.08 and the
+window-side wall runs slightly cool (B/G 1.23) as it physically should.
+The cool pair was originally scaled from the warm one rather than
+measured, and the measurement confirmed it rather than correcting it.
 
 `camera-bringup.rc` sets the defaults, calibrated against a grey ceiling
 (a grey surface is a valid neutral reference) and verified to render it
@@ -816,9 +819,12 @@ identical scene, and the CCM amplifies gain error roughly 3x in the
 rendered image, so scene-to-scene rendering varies about +-10% around
 neutral. That is inherent to the closed algorithm, not to the trim.
 
-The daytime magenta-vs-cyan *spatial* gradient investigated along the way
-(same-paint surfaces rendering 30% apart across one frame) is a daylight
-artifact - under uniform LED light the same surfaces agree within ~5%. It
+The magenta-vs-cyan *spatial* gradient investigated along the way
+(same-paint surfaces rendering 30% apart across one frame) is a
+low-sun artifact, not a general daylight one: it was measured at golden
+hour with direct low sunlight entering the room, and is not visible in
+midday diffuse daylight or under uniform artificial light, where the same
+surfaces agree within ~5%. It
 is IR and low-sun light through the aged front glass plus veiling glare
 from the internal window, which cannot be cleaned from outside. It is a
 per-unit hardware trait, not correctable by any global gain, and belongs

@@ -226,11 +226,12 @@ rendered image, so small steps):
 - **Dim mixed lighting can render greenish.** When the AWB classifier finds
   no recognizable illuminant it falls back to its reference gains, which
   bypass part of the correction. A handler for this state is planned.
-- **Daytime color gradient on aged units.** Strong daylight through the
-  front glass produces a cyan-to-magenta gradient across the frame (IR
+- **Low-sun color gradient on aged units.** Direct low sunlight through
+  the front glass produces a cyan-to-magenta gradient across the frame (IR
   leakage through the aged IR-cut filter plus internal veiling glare). It
-  disappears under uniform artificial light. No global correction can fix
-  it, and the front glass cannot be cleaned from outside.
+  is not visible in midday diffuse daylight or under artificial light. No
+  global correction can fix it, and the front glass cannot be cleaned from
+  outside.
 - **Single client.** The legacy HAL1 stack allows one camera client at a
   time.
 
