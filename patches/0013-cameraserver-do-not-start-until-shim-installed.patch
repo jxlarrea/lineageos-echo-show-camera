@@ -1,0 +1,52 @@
+cameraserver: do not start at boot on the MT8163 Echo Show devices
+
+The ROM built from this repository ships the complete MediaTek camera
+stack: 45 proprietary blobs, the passthrough provider, the compatibility
+shim and the private display framework. None of it can work until two more
+pieces are installed on the device itself - the cmdq event-id shim, which
+has to be built against the device's own bionic, and camera-bringup.rc,
+which grants the ISP its M4U/SMI permissions and mounts /persist.
+
+Between flashing the ROM and installing those, any client that opens the
+camera sends the HAL into an endless retry: ISP_WaitIrq times out on
+PASS1_TG1_DON, the ioctl fails, the sensor is powered down and back up,
+roughly every 0.6 s, indefinitely. Captured from the console of such a
+boot:
+
+    ISP_WaitIrq ERROR: ...WaitStatus(0x00000400),Timeout(500)
+    ISP_ioctl ERROR: Fail, Cmd(1074817798), (process)=(PreviewCmdQueTh,...)
+    [PowerDown]pinSetIdx:0, currSensorName: ov02b10_mipi_raw
+    [PowerON]pinSetIdx:0, currSensorName: ov02b10_mipi_raw
+
+That is enough to leave the device unresponsive with a lit but black
+screen: adbd still answers, but no new process can be spawned, and only a
+power cycle recovers it. It needs no user action to trigger - a kiosk or
+security app that opens the camera at startup is sufficient.
+
+Starting cameraserver disabled closes that window. It is a one-line
+change, and scripts/install-cmdq-event-shim.sh already removes the line
+once the shim is in place, so the camera comes up normally from the next
+boot onward.
+
+Apply from the source tree root:
+    patch -p1 < 0013-cameraserver-do-not-start-until-shim-installed.patch
+
+diff --git a/frameworks/av/camera/cameraserver/cameraserver.rc b/frameworks/av/camera/cameraserver/cameraserver.rc
+index 8f51458..ba0c76d 100644
+--- a/frameworks/av/camera/cameraserver/cameraserver.rc
++++ b/frameworks/av/camera/cameraserver/cameraserver.rc
+@@ -1,5 +1,14 @@
+ service cameraserver /system/bin/cameraserver
+     class main
++    # Not started at boot on the MT8163 Echo Show devices. The ROM ships the
++    # full MediaTek camera stack, but it cannot work until the cmdq event
++    # shim and camera-bringup.rc are installed on the device, and a camera
++    # client that opens it before then retries forever - ISP IRQ timeout,
++    # sensor power-down, power-up, ~0.6 s per cycle - until the whole device
++    # is unresponsive with a lit but black screen.
++    # scripts/install-cmdq-event-shim.sh removes this line once the shim is
++    # in place.
++    disabled
+     user cameraserver
+     group audio camera input drmrpc
+     ioprio rt 4

@@ -250,11 +250,17 @@ patch -p1 < ~/lineageos-echo-show-camera/patches/0005-*.patch
 
 cd ~/lineage-18.1/frameworks/av
 patch -p1 < ~/lineageos-echo-show-camera/patches/0006-*.patch
+patch -p1 < ~/lineageos-echo-show-camera/patches/0013-*.patch
 
 cd ~/lineage-18.1
 patch -p1 < ~/lineageos-echo-show-camera/patches/0011-*.patch
 patch -p1 < ~/lineageos-echo-show-camera/patches/0012-*.patch
 ```
+
+0013 stops `cameraserver` starting at boot. That matters: the ROM ships
+the whole camera stack, but it cannot work until step 9 installs the shim,
+and a client that opens the camera before then wedges the device (see the
+warning in step 8). `install-cmdq-event-shim.sh` re-enables it.
 
 0012 is a host-environment fix rather than a camera one: it lets
 `MKE2FS_CONFIG` reach `mke2fs`, without which the ART apex fails to build
@@ -428,6 +434,15 @@ rebuilds the boot partition from its parts, and requires the result to
 match the original byte for byte.
 
 Boot the device and re-establish adb root before continuing.
+
+> **Do not open the camera between here and the end of step 9.** The ROM
+> carries the whole camera stack but not yet the shim that makes it work,
+> so any client that opens it - including a kiosk or security app that
+> starts automatically - puts the HAL into an endless retry loop that
+> leaves the device unresponsive with a lit but black screen, recoverable
+> only by holding the power button. Patch 0013 prevents this by shipping
+> `cameraserver` disabled; if you skipped it, disable any auto-starting
+> camera app before rebooting.
 
 ## Step 9: install the on-device userspace
 
