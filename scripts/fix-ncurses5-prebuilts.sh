@@ -70,12 +70,19 @@ done
 # They carry RUNPATH $ORIGIN/../lib64 into out/soong/host/linux-x86/lib64,
 # so seed that directory too. It may not exist yet on a first run; create
 # it, since the symlinks are what matter and the build fills in the rest.
-HOSTLIB="$TREE/out/soong/host/linux-x86/lib64"
-mkdir -p "$HOSTLIB"
-ln -sf "$NCURSES" "$HOSTLIB/libncurses.so.5"
-ln -sf "$TINFO" "$HOSTLIB/libtinfo.so.5"
-echo "   out/soong/host/linux-x86/lib64 (for the build's own host tools)"
-linked=$((linked + 1))
+# There are two of these trees, and both matter: Soong puts llvm-tblgen in
+# out/soong/host/linux-x86/bin (stops the build around 51%) and the legacy
+# make path puts bcc_strip_attr in out/host/linux-x86/bin (stops it in the
+# RenderScript step). Every one of them carries
+# RUNPATH $ORIGIN/../lib64, so seeding the sibling lib64 covers them.
+for HOSTLIB in "$TREE/out/soong/host/linux-x86/lib64" \
+               "$TREE/out/host/linux-x86/lib64"; do
+    mkdir -p "$HOSTLIB"
+    ln -sf "$NCURSES" "$HOSTLIB/libncurses.so.5"
+    ln -sf "$TINFO" "$HOSTLIB/libtinfo.so.5"
+    echo "   ${HOSTLIB#$TREE/} (host tools the build compiles)"
+    linked=$((linked + 1))
+done
 
 # A `make clean` wipes out/, so leave a copy somewhere stable and tell the
 # caller how to point the loader at it if they ever need to.
