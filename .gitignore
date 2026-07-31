@@ -1,3 +1,7 @@
+# Proprietary blobs fetched from the firmware dump. NEVER commit these:
+# this repository distributes no proprietary binaries.
+stock/
+
 # Device backups, session logs, and build outputs are local-only.
 backups/
 logs/
