@@ -320,7 +320,11 @@ libraries: libncurses.so.5`:
 
 It symlinks the ncurses 6 you do have next to the binaries that want
 version 5 (they carry `RPATH $ORIGIN/../lib64`), so nothing is installed
-system-wide and no root is needed.
+system-wide and no root is needed. It covers both the prebuilt toolchains
+and `out/soong/host/linux-x86/lib64`, where the build puts host tools it
+compiles itself - `llvm-tblgen` hits the same wall around 51%. If a later
+build reports the same error (a `make clean` wipes `out/`), just run it
+again.
 
 ```sh
 cd ~/lineage-18.1

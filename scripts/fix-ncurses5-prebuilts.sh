@@ -65,12 +65,35 @@ for d in "$CLANG_DIR"/*/; do
     linked=$((linked + 1))
 done
 
+# The build also produces host binaries of its own that want the old
+# soname - llvm-tblgen is the one that stops a full build, around 51%.
+# They carry RUNPATH $ORIGIN/../lib64 into out/soong/host/linux-x86/lib64,
+# so seed that directory too. It may not exist yet on a first run; create
+# it, since the symlinks are what matter and the build fills in the rest.
+HOSTLIB="$TREE/out/soong/host/linux-x86/lib64"
+mkdir -p "$HOSTLIB"
+ln -sf "$NCURSES" "$HOSTLIB/libncurses.so.5"
+ln -sf "$TINFO" "$HOSTLIB/libtinfo.so.5"
+echo "   out/soong/host/linux-x86/lib64 (for the build's own host tools)"
+linked=$((linked + 1))
+
+# A `make clean` wipes out/, so leave a copy somewhere stable and tell the
+# caller how to point the loader at it if they ever need to.
+COMPAT="$TREE/.ncurses5-compat"
+mkdir -p "$COMPAT"
+ln -sf "$NCURSES" "$COMPAT/libncurses.so.5"
+ln -sf "$TINFO" "$COMPAT/libtinfo.so.5"
+
 if (( linked == 0 )); then
     echo "no toolchain needed the compatibility symlinks (nothing to do)"
     exit 0
 fi
 
 echo
-echo "linked ncurses 5 compatibility into $linked toolchain(s):"
+echo "linked ncurses 5 compatibility in $linked place(s):"
 echo "   libncurses.so.5 -> $NCURSES"
 echo "   libtinfo.so.5   -> $TINFO"
+echo
+echo "If a later build still reports libncurses.so.5 (for example after"
+echo "make clean wipes out/), re-run this, or export:"
+echo "   export LD_LIBRARY_PATH=$COMPAT\${LD_LIBRARY_PATH:+:\$LD_LIBRARY_PATH}"
