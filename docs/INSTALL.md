@@ -201,17 +201,55 @@ cp -r ~/lineageos-echo-show-camera/shims/libcamera_shim \
     ~/lineage-18.1/device/amazon/mt8163-common/
 ```
 
-## Step 6: extract the camera blobs into the vendor tree
+## Step 6: camera blobs into the vendor tree
+
+This is the layer the ROM cannot build from source: 45 proprietary
+libraries from the stock firmware, plus one derived from them. It all
+happens **before** the build, so the ROM you flash already contains it.
 
 ```sh
-cat ~/lineageos-echo-show-camera/patches/cronos-camera-proprietary-files.txt \
+cd ~/lineageos-echo-show-camera
+
+# 6.1  Declare the blobs to the build
+cat patches/cronos-camera-proprietary-files.txt \
     >> ~/lineage-18.1/device/amazon/cronos/proprietary-files.txt
+
+# 6.2  Download the stock camera stack from the public firmware dump
+#      (45 libraries, ~17 MB, into stock/lib)
+scripts/fetch-camera-blobs.sh
+
+# 6.3  Place them at the paths the blob list declares
+scripts/install-blobs-to-tree.sh ~/lineage-18.1
+
+# 6.4  Build the private display framework: fetch the stock API 25
+#      libdpframework.so, give it a private soname, apply three binary
+#      patches, and repoint the ten blobs that link it
+scripts/install-private-dpframework.sh ~/lineage-18.1
+
+# 6.5  Add the compatibility shim to the blobs' DT_NEEDED, so the linker
+#      resolves the 11 removed symbols through it
+scripts/patch-shim-needed.sh ~/lineage-18.1
 ```
 
-Then re-run the device's `extract-files.sh` against a stock image, or let
-the build consume the blobs fetched in step 9 (the on-device install script
-also pushes them directly; both routes work, the vendor-tree route survives
-future ROM rebuilds).
+Order matters: 6.4 creates `libdpframework_cam.so`, and 6.5 must run after
+it so the repointed libraries also get the shim entry.
+
+Verify:
+
+```sh
+ls ~/lineage-18.1/vendor/amazon/cronos/proprietary/vendor/lib/libdpframework_cam.so
+# should be about 333 KB - if it is ~11 KB you built the shelved adapter
+# from shims/libdpframework_cam/ instead; see that directory's README
+
+~/lineage-18.1/prebuilts/extract-tools/linux-x86/bin/patchelf-0_9 --print-needed \
+    ~/lineage-18.1/vendor/amazon/cronos/proprietary/vendor/lib/libcam.client.so \
+    | grep -E 'libcamera_shim|libdpframework'
+# libcamera_shim.so
+# libdpframework_cam.so
+```
+
+If `libcam.client.so` still says plain `libdpframework.so`, step 6.4 did
+not run against this tree.
 
 ## Step 7: build
 
@@ -251,41 +289,37 @@ Boot the device and re-establish adb root before continuing.
 
 ## Step 9: install the on-device userspace
 
-All from the repository root, in this order:
+The ROM you just flashed already contains the blobs, the provider and the
+shim. What remains is the `LD_PRELOAD` shim (which is built against the
+device's own bionic, so it cannot be built earlier) and the two tuning
+corrections, which patch a library in place on the device.
 
 ```sh
 cd ~/lineageos-echo-show-camera
 
-# 1. Fetch the stock camera blobs from the public firmware dump (to stock/lib)
-scripts/fetch-camera-blobs.sh
-
-# 2. Add the shim to the blobs' DT_NEEDED so the linker resolves through it
-scripts/patch-shim-needed.sh ~/lineage-18.1
-
-# 3. Build the private API 25 display framework: fetch, rename soname,
-#    apply the three binary patches (each verifies the original bytes first)
-scripts/install-private-dpframework.sh ~/lineage-18.1
-
-# 4. Push blobs and libraries to the device
-scripts/install-camera.sh <serial> ~/lineage-18.1
-
-# 5. Build and install the LD_PRELOAD shim (cmdq event translation + AWB
-#    correction) and the camera-bringup init script
+# 9.1  Build the LD_PRELOAD shim against this device's libc, and install it
+#      together with the camera-bringup init script
 shims/libcmdqevent/build.sh <serial>
 scripts/install-cmdq-event-shim.sh <serial>
 
-# 6. Neutralize the double white balance in the AWB reference
+# 9.2  Neutralize the double white balance in the AWB reference
 scripts/patch-awb-d65.sh <serial>
 
-# 7. Correct the black level for the OV02B10 (the stock tuning leaves a
-#    30% grey floor over every image)
+# 9.3  Correct the black level for the OV02B10 (the stock tuning leaves a
+#      ~30% grey floor over every image)
 scripts/patch-obc-pedestal.sh <serial>
 
 adb -s <serial> reboot
 ```
 
-Each script prints what it changed; none of them proceeds silently past an
-unexpected state.
+Each script prints what it changed and refuses to proceed past an
+unexpected state; 9.2 and 9.3 keep a `.orig` backup on the device.
+
+If you would rather not reflash the whole ROM while iterating, or you
+changed something in the vendor tree after building,
+`scripts/install-camera.sh <serial> ~/lineage-18.1` pushes the blobs, the
+provider libraries, the shim and the vintf manifest straight to the device
+from the build tree. It checks that the build artifacts exist first.
 
 ## Step 10: verify
 

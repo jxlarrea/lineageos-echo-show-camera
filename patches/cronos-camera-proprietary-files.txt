@@ -8,6 +8,13 @@
 # Paths are rewritten from the stock non-Treble layout (/system/vendor/lib)
 # into /vendor/lib for Android 11.
 
+# Not from the dump directly: scripts/install-private-dpframework.sh creates
+# this from the stock API 25 libdpframework.so (private soname + three binary
+# patches). Listed here so the ROM build ships it and install-camera.sh
+# pushes it; without it the camera blobs load the ROM's Android 9
+# libdpframework and crash in DpIspStream's constructor.
+vendor/lib/libdpframework_cam.so
+
 vendor/lib/hw/camera.mt8163.so
 vendor/lib/lib3a.so
 vendor/lib/libcam.camadapter.so

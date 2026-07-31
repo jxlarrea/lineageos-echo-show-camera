@@ -38,7 +38,15 @@ for lib in "${LIBS[@]}"; do
         continue
     fi
     echo "fetching $lib.so"
-    curl -fsSL -o "$OUT/$lib.so" "$RAW/system/vendor/lib/$lib.so"
+    # Almost everything is under system/vendor/lib in the stock (pre-Treble)
+    # layout, but a few - libhal_effects.so - sit in system/lib. Try both
+    # rather than hardcoding the exception.
+    curl -fsSL -o "$OUT/$lib.so" "$RAW/system/vendor/lib/$lib.so" ||
+        curl -fsSL -o "$OUT/$lib.so" "$RAW/system/lib/$lib.so" || {
+            rm -f "$OUT/$lib.so"
+            echo "could not fetch $lib.so from the dump" >&2
+            exit 1
+        }
 done
 
 # The HAL1 module itself lives under hw/.
