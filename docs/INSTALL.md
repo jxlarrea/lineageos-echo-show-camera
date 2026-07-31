@@ -308,6 +308,20 @@ will silently produce a ROM with no camera blobs in it.
 
 ## Step 7: build
 
+On a current distribution, first make AOSP's prebuilt clang runnable. It
+is linked against `libncurses.so.5` / `libtinfo.so.5`, which Debian 13 and
+similar releases no longer package at all. Without this the build dies
+around 3%, in the RenderScript step, with `error while loading shared
+libraries: libncurses.so.5`:
+
+```sh
+~/lineageos-echo-show-camera/scripts/fix-ncurses5-prebuilts.sh ~/lineage-18.1
+```
+
+It symlinks the ncurses 6 you do have next to the binaries that want
+version 5 (they carry `RPATH $ORIGIN/../lib64`), so nothing is installed
+system-wide and no root is needed.
+
 ```sh
 cd ~/lineage-18.1
 . build/envsetup.sh
