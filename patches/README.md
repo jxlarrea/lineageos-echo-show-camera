@@ -1,5 +1,12 @@
 # Device tree changes for camera support on cronos
 
+> **These changes are applied for you by
+> `0011-device-tree-camera-enablement.patch`** (except section 3, the blob
+> list, which `docs/INSTALL.md` step 6 covers, and section 4, sepolicy).
+> This file explains *why* each one is needed - follow
+> [docs/INSTALL.md](../docs/INSTALL.md) to actually install.
+
+
 Three separate problems have to be fixed together. Applying only some of them
 leaves the camera enumerating zero devices exactly as it does today.
 

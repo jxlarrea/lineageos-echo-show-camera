@@ -28,7 +28,7 @@ for lib in libc.so libdl.so liblog.so; do
 done
 
 # Regenerate the event map from the kernel sources so it cannot drift.
-python3 "$REPO/tools/cmdq-trace/gen_event_map.py" >/dev/null
+python3 "$REPO/tools/cmdq-trace/gen_event_map.py" "$TREE/kernel/amazon/mt8163-4.9" >/dev/null
 cp "$REPO/tools/cmdq-trace/event_map.h" "$HERE/event_map.h"
 
 "$CLANG" --target=armv7a-linux-androideabi -march=armv7-a -mthumb -Os \

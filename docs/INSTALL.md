@@ -279,15 +279,38 @@ will silently produce a ROM with no camera blobs in it.
 cd ~/lineage-18.1
 . build/envsetup.sh
 lunch lineage_cronos-userdebug
-mka bacon           # full ROM zip; takes a while the first time
+mka bacon           # full ROM zip; hours on the first build
 ```
 
-The boot image with the kernel patches is produced as part of the build
-(`out/target/product/cronos/boot.img`).
+Two outputs matter:
+
+```sh
+ls -la out/target/product/cronos/lineage-18.1-*.zip   # the ROM, for TWRP
+ls -la out/target/product/cronos/boot.img             # the patched kernel
+```
+
+**Build `userdebug`, not `user`.** This work is verified on a userdebug
+build, where SELinux is permissive and no policy work is required. On an
+enforcing build the camera will fail on denials that are not diagnosed
+here; you would have to collect them with `dmesg | grep avc` and write the
+rules (see `patches/README.md` section 4). `adb root`, which several
+install steps need, also only works on userdebug.
 
 ## Step 8: flash
 
-ROM zip first, via TWRP as usual (sideload or SD card).
+ROM zip first. Reboot to TWRP (`adb reboot recovery`), then either sideload
+it:
+
+```sh
+adb sideload out/target/product/cronos/lineage-18.1-*.zip
+```
+
+or push it and install from TWRP's own file browser. This is a dirty flash
+over the same ROM, so `/data` is preserved; no wipe is needed.
+
+Reboot into Android once and confirm it comes up before touching the boot
+partition - that way, if the next step goes wrong, you know the ROM itself
+was fine.
 
 Boot image second, and **only** with the flash script:
 
