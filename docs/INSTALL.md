@@ -357,8 +357,18 @@ again.
 cd ~/lineage-18.1
 . build/envsetup.sh
 lunch lineage_cronos-userdebug
+
+# The tree's mke2fs is from 2019 and reads the host's /etc/mke2fs.conf,
+# which on a current distribution enables features it does not know
+# (orphan_file, metadata_csum_seed). Building the ART apex then dies with
+# "Invalid filesystem option set". The tree ships a compatible config:
+export MKE2FS_CONFIG=$PWD/system/extras/ext4_utils/mke2fs.conf
+
 mka bacon           # full ROM zip; hours on the first build
 ```
+
+`MKE2FS_CONFIG` has to be set in the shell you build from, so re-export it
+if you come back to a fresh terminal.
 
 Two outputs matter:
 
