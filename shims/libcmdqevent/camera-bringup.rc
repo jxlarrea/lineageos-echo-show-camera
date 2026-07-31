@@ -16,6 +16,14 @@ on post-fs-data
     # multipliers were calibrated against a grey ceiling under daylight
     # (.r/.b) and 2600K LED (.r.warm/.b.warm) and render both neutral.
     # Per-device touch-up: setprop the values and reopen the camera.
+    # The sensor is landscape-mounted and the driver flips it 180 degrees,
+    # so clients must not rotate by a phone-style 270. On a ROM built from
+    # this repository device.mk already puts this in build.prop and the
+    # line below fails harmlessly; on a stock port with only the prebuilt
+    # overlay installed, build.prop does not define it and a ro.* property
+    # can still be set here because nothing has claimed it yet.
+    setprop ro.camera.sensor_orientation 0
+
     setprop persist.camera.awbtrim.r 507
     setprop persist.camera.awbtrim.b 692
     setprop persist.camera.awbtrim.r.warm 564
