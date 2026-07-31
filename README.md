@@ -38,14 +38,15 @@ fixed here, layer by layer.
 
 | Device | Codename | Sensor | Status |
 | --- | --- | --- | --- |
-| Echo Show 5 (2nd gen, 2021) | `cronos` | OV02B10 | fully working, verified |
-| Echo Show 5 (1st gen) | `checkers` | OV9734 | untested; kernel struct patch applies, no driver port needed |
-| Echo Show 8 (1st gen) | `crown` | OV9734 | untested; same as checkers |
-| Echo Show (2nd gen) | `rook` | GC0312 | untested |
+| Echo Show 5 (2nd Generation) | `cronos` | OV02B10 | fully working, verified |
+| Echo Show 5 | `checkers` | OV9734 | untested; kernel struct patch applies, no driver port needed |
+| Echo Show 8 | `crown` | OV9734 | untested; same as checkers |
+| Echo Spot | `rook` | GC0312 | untested; different sensor again |
 
-Everything below is written for `cronos`. For the OV9734 devices, skip the
-sensor driver patches (0004, 0007, 0008, 0010) and expect to redo the
-color calibration.
+Everything below is written for `cronos`. On the OV9734 devices apply only
+the kernel struct patch (0001) - their sensor driver is already in the tree
+and selected - and expect to redo the color calibration, which is specific
+to the OV02B10.
 
 ## Prerequisites
 
@@ -75,10 +76,12 @@ next layer would otherwise hit.
    declaration, front-camera feature declaration, sensor orientation,
    two AOSP camera fixes. Requires building the ROM (or at minimum the
    affected libraries) with the patches applied.
-3. **On-device userspace**: the proprietary camera blobs (fetched from a
-   public firmware dump, never shipped here), the compatibility shims, the
-   patched private display framework, and the tuning corrections. All
-   applied by scripts over adb.
+3. **Vendor blobs and on-device tuning**: the proprietary camera stack
+   (fetched from a public firmware dump, never shipped here) and the
+   patched private display framework go into the vendor tree *before* the
+   build; the `LD_PRELOAD` shim and the two tuning corrections are applied
+   to the device afterwards, because they are built against, or patch, what
+   is on the device.
 
 ### Layer 1: kernel
 
@@ -106,14 +109,13 @@ relocated copy of the boot header; writing a plain image, or writing it at
 a guessed offset, produces a hang at the vendor logo that looks exactly
 like a bad kernel. Two devices were bricked learning this. The flash
 script implements the correct layout, backs up the partition first, and
-verifies byte for byte; it also has a `--self-test`.
+verifies byte for byte. `scripts/flash-boot.sh --self-test <adb-serial>`
+proves the assembly logic by rebuilding your device's own working boot
+partition from its parts and requiring an exact match.
 
 ### Layer 2: ROM changes
 
-Follow [patches/README.md](patches/README.md) for the device tree changes:
-the passthrough camera provider declaration, the corrected vintf manifest,
-the blob list for `proprietary-files.txt`, and the required permissions.
-Additionally apply:
+Apply:
 
 ```
 patches/0005-camera-device-1.0-cookie-fallback-and-ANativeWindowBuffer-preview.patch
@@ -125,21 +127,38 @@ patches/0011-device-tree-camera-enablement.patch
 (`camera.device@1.0-impl`, `libcamera_client`); 0011 carries all the device
 tree changes (provider declaration, packages, front-camera feature, sensor
 orientation, HAL1 native handle flag).
+[patches/README.md](patches/README.md) explains what each change is for.
 
-### Layer 3: on-device userspace
+The blob list also has to be declared and the vendor makefiles regenerated
+(`device/amazon/cronos/setup-makefiles.sh`) - appending to
+`proprietary-files.txt` alone does nothing, because the build reads the
+generated `vendor/amazon/cronos/*.mk`.
 
-With the patched ROM booted and adb root available:
+### Layer 3: vendor blobs, then on-device tuning
+
+Into the vendor tree, **before** building the ROM:
 
 ```sh
-scripts/fetch-camera-blobs.sh              # stock camera blobs from the public dump
-scripts/patch-shim-needed.sh               # link the compatibility shim into the blobs
-scripts/install-private-dpframework.sh     # API 25 display framework, private soname, 3 binary patches
-scripts/install-camera.sh                  # push everything to the device
-scripts/install-cmdq-event-shim.sh <serial>  # cmdq event translation + AWB correction shim
-scripts/patch-awb-d65.sh <serial>          # neutralize the double white balance
-scripts/patch-obc-pedestal.sh <serial>     # correct the black level for the OV02B10
+scripts/fetch-camera-blobs.sh                    # 45 blobs from the public dump
+scripts/install-blobs-to-tree.sh <tree>          # place them at their declared paths
+scripts/install-private-dpframework.sh <tree>    # API 25 display framework: private
+                                                 #   soname + 3 binary patches
+scripts/patch-shim-needed.sh <tree>              # add the shim to the blobs' DT_NEEDED
+```
+
+Onto the device, **after** flashing the ROM:
+
+```sh
+shims/libcmdqevent/build.sh <serial>         # built against the device's own bionic
+scripts/install-cmdq-event-shim.sh <serial>  # cmdq event translation + AWB correction
+scripts/patch-awb-d65.sh <serial>            # neutralize the double white balance
+scripts/patch-obc-pedestal.sh <serial>       # correct the black level for the OV02B10
 adb -s <serial> reboot
 ```
+
+`scripts/install-camera.sh <serial> <tree>` pushes the vendor-tree blobs,
+provider libraries, shim and manifest directly, for iterating without a
+full reflash.
 
 The blobs come from the public
 [amazon_cronos_dump](https://github.com/el-vertedero/amazon_cronos_dump)
@@ -180,8 +199,8 @@ persist.camera.awbtrim.b.warm   warm anchor, blue
 Defaults are in `shims/libcmdqevent/camera-bringup.rc`, calibrated against
 a grey surface on one device. To touch up for your unit: point the camera
 at anything grey or white, take snapshots, and adjust in steps of 2 or 3
-(the color matrix amplifies these values roughly 5x in the image, so small
-steps):
+(the color matrix amplifies a change here several times over in the
+rendered image, so small steps):
 
 - image too magenta: lower `.r` (or `.r.warm` under warm light)
 - image too green: raise it

@@ -14,7 +14,7 @@
 #
 set -euo pipefail
 
-TREE="${1:-/mnt/dev/lineage-18.1}"
+TREE="${1:-${LINEAGE_TREE:-$HOME/lineage-18.1}}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$HERE/stock/lib"
 LIST="$HERE/patches/cronos-camera-proprietary-files.txt"

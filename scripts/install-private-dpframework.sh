@@ -24,7 +24,7 @@
 #
 set -euo pipefail
 
-TREE="${1:-/mnt/dev/lineage-18.1}"
+TREE="${1:-${LINEAGE_TREE:-$HOME/lineage-18.1}}"
 PROP="$TREE/vendor/amazon/cronos/proprietary/vendor/lib"
 PATCHELF="$TREE/prebuilts/extract-tools/linux-x86/bin/patchelf-0_9"
 DUMP_BRANCH="cronos-user-6.0-NS6573-6567-amz-p,release-keys"

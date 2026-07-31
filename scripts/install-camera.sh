@@ -14,7 +14,7 @@
 set -euo pipefail
 
 DEVICE="${1:-}"
-TREE="${2:-/mnt/dev/lineage-18.1}"
+TREE="${2:-${LINEAGE_TREE:-$HOME/lineage-18.1}}"
 if [[ -z "$DEVICE" ]]; then
     echo "usage: $0 <adb-serial> [build-tree]" >&2
     exit 2

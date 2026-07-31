@@ -21,12 +21,13 @@ giving hardware_value -> enum_index, which is exactly the inverse of what
 cmdq_core_get_event_value() does at runtime.
 """
 
+import os
 import re
 import sys
 from pathlib import Path
 
 KERNEL = Path(sys.argv[1] if len(sys.argv) > 1
-              else "/mnt/dev/lineage-18.1/kernel/amazon/mt8163-4.9")
+              else os.path.expanduser("~/lineage-18.1/kernel/amazon/mt8163-4.9"))
 HDR = KERNEL / "drivers/misc/mediatek/cmdq/v2/cmdq_event_common.h"
 DTSI = KERNEL / "arch/arm64/boot/dts/mediatek/mt8163.dtsi"
 

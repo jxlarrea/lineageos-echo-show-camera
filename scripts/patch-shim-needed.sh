@@ -13,7 +13,7 @@
 #
 set -euo pipefail
 
-TREE="${1:-/mnt/dev/lineage-18.1}"
+TREE="${1:-${LINEAGE_TREE:-$HOME/lineage-18.1}}"
 BLOBS="$TREE/vendor/amazon/cronos/proprietary/vendor/lib"
 PATCHELF="$TREE/prebuilts/extract-tools/linux-x86/bin/patchelf-0_9"
 SHIM="libcamera_shim.so"

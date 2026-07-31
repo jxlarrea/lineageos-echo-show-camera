@@ -16,7 +16,7 @@ fi
 
 HERE="$(cd "$(dirname "$0")" && pwd)"
 REPO="$(cd "$HERE/../.." && pwd)"
-TREE="${LINEAGE_TREE:-/mnt/dev/lineage-18.1}"
+TREE="${LINEAGE_TREE:-$HOME/lineage-18.1}"
 CLANG="$TREE/prebuilts/clang/host/linux-x86/clang-r377782c/bin/clang"
 OUT="$HERE/out"
 

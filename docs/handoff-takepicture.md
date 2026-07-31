@@ -169,7 +169,7 @@ parameters via environment variables.
 
 - Device: `cronos`, network adb at `<device-ip>:5555`. `adb root` is needed
   after every reboot.
-- Build tree: `/mnt/dev/lineage-18.1`.
+- Build tree: wherever you synced it (`$LINEAGE_TREE`).
   `source build/envsetup.sh && lunch lineage_cronos-userdebug && mka bootimage`
   takes ~20-40 s incrementally.
 - Flash: `scripts/flash-boot.sh <serial>`. It backs up first, verifies

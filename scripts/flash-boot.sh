@@ -33,11 +33,37 @@ assemble() {
 }
 
 if [[ "${1:-}" == "--self-test" ]]; then
-    B=backups/partitions/boot-stock-20260729.img
-    R=backups/partitions/recovery-stock-20260729.img
-    for f in "$B" "$R"; do
-        [[ -f "$f" ]] || { echo "missing $f" >&2; exit 1; }
-    done
+    # Uses a known-good pair from this device: the current (working) boot
+    # partition and the recovery partition it borrows its exploit header
+    # from. With an adb serial, dump them first; otherwise use the newest
+    # pair already in backups/partitions.
+    mkdir -p backups/partitions
+    if [[ -n "${2:-}" ]]; then
+        echo "== dumping boot and recovery from ${2} =="
+        for part in boot recovery; do
+            command adb -s "$2" shell \
+                "dd if=/dev/block/by-name/$part of=/data/local/tmp/$part.img" \
+                >/dev/null 2>&1
+            command adb -s "$2" pull "/data/local/tmp/$part.img" \
+                "backups/partitions/$part-selftest.img" >/dev/null
+            command adb -s "$2" shell "rm -f /data/local/tmp/$part.img"
+        done
+    fi
+    B="$(ls -t backups/partitions/boot-*.img 2>/dev/null | head -1 || true)"
+    R="$(ls -t backups/partitions/recovery-*.img 2>/dev/null | head -1 || true)"
+    if [[ -z "$B" || -z "$R" ]]; then
+        cat >&2 <<EOF
+self-test needs a known-good boot and recovery image from a working device.
+Either pass an adb serial so they can be dumped for you:
+
+    $0 --self-test <adb-serial>
+
+or place them yourself as backups/partitions/boot-*.img and recovery-*.img.
+EOF
+        exit 1
+    fi
+    echo "   boot:     $B"
+    echo "   recovery: $R"
     T="$(mktemp -d)"; trap 'rm -rf "$T"' EXIT
     # Reconstruct what the plain boot.img must have looked like: its header,
     # padding out to the payload offset, then the payload.
@@ -55,10 +81,10 @@ if [[ "${1:-}" == "--self-test" ]]; then
 fi
 
 DEVICE="${1:-}"
-TREE="${2:-/mnt/dev/lineage-18.1}"
+TREE="${2:-${LINEAGE_TREE:-$HOME/lineage-18.1}}"
 if [[ -z "$DEVICE" ]]; then
     echo "usage: $0 <adb-serial> [build-tree]" >&2
-    echo "       $0 --self-test" >&2
+    echo "       $0 --self-test [adb-serial]" >&2
     exit 2
 fi
 

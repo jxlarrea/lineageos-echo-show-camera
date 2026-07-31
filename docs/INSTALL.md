@@ -107,14 +107,25 @@ mkdir -p ~/lineage-18.1 && cd ~/lineage-18.1
 repo init -u https://github.com/LineageOS/android.git -b lineage-18.1 --depth=1
 git clone https://github.com/amazon-oss/local_manifests.git -b lineage-18.1 \
     .repo/local_manifests
-# apply the manifest corrections from this repository before syncing:
-#   ~/lineageos-echo-show-camera/patches/local-manifest-fixes.xml
-# (see docs/building.md for what each fix is and why)
+
+# Manifest corrections, WITHOUT which the sync fails: one project in the
+# upstream manifest no longer exists on GitHub. The filename sorts after
+# amazon_mt8163.xml so repo has defined the projects before removing them.
+cp ~/lineageos-echo-show-camera/patches/local-manifest-fixes.xml \
+    .repo/local_manifests/zz-local-fixes.xml
+
 repo sync -c --no-clone-bundle --no-tags -j8
+
+# The maintainer's own patch script, from the local_manifests clone - not
+# this repository's patches/. Required, and again after every repo sync.
 ./patches/apply.sh
+
 . build/envsetup.sh
 breakfast lineage_cronos-userdebug
 ```
+
+[docs/building.md](building.md) explains each manifest correction and the
+missing-toolchain problem you may hit next.
 
 You need roughly 150 GB of disk.
 
@@ -210,9 +221,12 @@ happens **before** the build, so the ROM you flash already contains it.
 ```sh
 cd ~/lineageos-echo-show-camera
 
-# 6.1  Declare the blobs to the build
+# 6.1  Declare the blobs to the build, then regenerate the vendor
+#      makefiles from that list (appending alone does nothing - the build
+#      reads the generated vendor/amazon/cronos/*.mk, not this file)
 cat patches/cronos-camera-proprietary-files.txt \
     >> ~/lineage-18.1/device/amazon/cronos/proprietary-files.txt
+(cd ~/lineage-18.1/device/amazon/cronos && ./setup-makefiles.sh)
 
 # 6.2  Download the stock camera stack from the public firmware dump
 #      (45 libraries, ~17 MB, into stock/lib)
@@ -251,6 +265,14 @@ ls ~/lineage-18.1/vendor/amazon/cronos/proprietary/vendor/lib/libdpframework_cam
 If `libcam.client.so` still says plain `libdpframework.so`, step 6.4 did
 not run against this tree.
 
+```sh
+grep -c 'libcam\|dpframework_cam' ~/lineage-18.1/vendor/amazon/cronos/cronos-vendor.mk
+# a non-zero count: the generated vendor makefile knows about the blobs
+```
+
+If that count is 0, `setup-makefiles.sh` in 6.1 did not run, and the build
+will silently produce a ROM with no camera blobs in it.
+
 ## Step 7: build
 
 ```sh
@@ -282,8 +304,12 @@ plain image produces a hang at the vendor logo that is indistinguishable
 from a bad kernel. If you want to convince yourself first:
 
 ```sh
-scripts/flash-boot.sh --self-test
+scripts/flash-boot.sh --self-test <serial>
 ```
+
+That dumps your device's current (working) boot and recovery partitions,
+rebuilds the boot partition from its parts, and requires the result to
+match the original byte for byte.
 
 Boot the device and re-establish adb root before continuing.
 
@@ -346,7 +372,7 @@ Then the functional test:
    1600x1200 JPEG (check with `adb shell ls -la /sdcard/DCIM/Camera/`).
 3. Cover the camera or darken the room and take another photo. It should be
    essentially black. If it is a grey or cyan haze instead, the black-level
-   patch (step 9.7) did not apply.
+   patch (step 9.3) did not apply.
 
 There is also `scripts/camera-test.sh <serial>`, which runs a scripted
 cold-boot capture cycle and collects the relevant logs.
@@ -370,7 +396,9 @@ adb -s <serial> shell setprop persist.camera.awbtrim.b.warm 412
 
 Values are read every 64 frames, so changes apply within a few seconds
 without restarting anything. Steps of 2-3 matter: the color matrix
-amplifies these values roughly 5x in the rendered image. To persist your
+amplifies a change here several times over in the rendered image - moving
+`r.warm` by 4 (under 1%) was enough to take a test scene from neutral to
+visibly warm. To persist your
 values across factory resets, edit the defaults in
 `shims/libcmdqevent/camera-bringup.rc` and re-run
 `scripts/install-cmdq-event-shim.sh`.
