@@ -16,15 +16,15 @@
   <remove-project name="android_hardware_mediatek_mt66xx" />
 
   <!--
-    These three refuse to fetch shallowly here and blow up to 150+ GB of object
-    store for 3.6 GB of checked-out files, filling the volume. The build only
-    needs the files, so they are checked out once and then dropped from repo's
-    management; their working trees stay in place as plain directories.
-    Re-add these lines if you ever need to update them.
+    These three are large. They used to be removed here, on the theory that
+    the build only needs their files and they could be checked out once and
+    then dropped from repo's management. That is wrong for anyone starting
+    from a fresh sync: prebuilts/tools carries truth-prebuilt,
+    gson-prebuilt-jar, metalava's deps and the robolectric jars, so without
+    it Soong fails immediately with a wall of "depends on undefined module".
+    They are left in the manifest deliberately: the shallow repo init in
+    the install guide already keeps the fetch small.
   -->
-  <remove-project name="platform/prebuilts/rust" />
-  <remove-project name="platform/prebuilts/tools" />
-  <remove-project name="platform/prebuilts/android-emulator" />
 
   <!--
     BoardConfigCommon.mk points TARGET_KERNEL_CROSS_COMPILE_PREFIX at
