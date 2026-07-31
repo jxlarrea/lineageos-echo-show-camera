@@ -48,15 +48,23 @@ fixed here, layer by layer.
 
 | Device | Codename | Sensor | Status |
 | --- | --- | --- | --- |
-| Echo Show 5 (2nd Generation) | `cronos` | OV02B10 | fully working, verified |
-| Echo Show 5 | `checkers` | OV9734 | untested; kernel struct patch applies, no driver port needed |
-| Echo Show 8 | `crown` | OV9734 | untested; same as checkers |
+| Echo Show 5 (2nd Generation) | `cronos` | OV02B10 | working, verified end to end |
+| Echo Show 8 | `crown` | OV9734 | **working, community reported** - capture confirmed; needs the orientation below |
+| Echo Show 5 | `checkers` | OV9734 | untested; same shape as `crown`, no driver port needed |
 | Echo Spot | `rook` | GC0312 | untested; different sensor again |
 
 Everything below is written for `cronos`. On the OV9734 devices apply only
 the kernel struct patch (0001) - their sensor driver is already in the tree
 and selected - and expect to redo the color calibration, which is specific
 to the OV02B10.
+
+**OV9734 devices need a different sensor orientation.** `cronos` reports
+`ro.camera.sensor_orientation=0` because its driver flips the sensor 180
+degrees in hardware; nothing flips the OV9734, so leaving it at 0 gives an
+upside-down picture. Set it to `180` in
+`shims/libcmdqevent/camera-bringup.rc` (details in
+[docs/INSTALL.md](docs/INSTALL.md) step 3). Reports of the value that ends
+up correct on each device are welcome.
 
 ## Prerequisites
 
