@@ -1,0 +1,83 @@
+imgsensor: ov9734: apply the vertical flip Amazon intended
+
+The OV9734 devices (crown, checkers) produce an upside-down picture. The
+cause is not the mounting: it is a Kconfig symbol that is never set.
+
+ov9734mipiraw_Sensor.h picks its MIRROR macro like this:
+
+    #if defined(CONFIG_CAMERA_MULTIMODAL)
+    #define ov9734_MIRROR_V
+    #else
+    #define ov9734_MIRROR_NORMAL
+    #endif
+
+CONFIG_CAMERA_MULTIMODAL is declared "default n" in
+drivers/misc/mediatek/imgsensor/Kconfig and is set by no Echo Show
+defconfig, so the condition can never be true and every build gets
+ov9734_MIRROR_NORMAL. MIRROR is 0x10 rather than 0x14, register 0x3820
+never gets its flip bit, and the sensor reads out inverted.
+
+The multimodal branch is the one meant for these devices, so this makes
+the vertical flip unconditional rather than enabling the symbol. Turning
+the symbol on would reach further than the picture: it also switches
+SUPPORT_I2C_BUS_NUM2 from 2 to 0 and skips adopt_CAMERA_HW_CheckIsAlive()
+in kd_sensorlist.c, neither of which is wanted here.
+
+sensor_output_dataformat stays RAW_B. Amazon's own multimodal
+configuration pairs MIRROR_V with RAW_B, and .mirror in this driver is
+assigned once and never read again - unlike the OV02B10 in patches/0007,
+which has a live set_mirror_flip(). The Bayer phase the HAL is told about
+must therefore stay as it is; declaring RAW_R here swaps red and blue.
+
+Verified on crown (Echo Show 8) by a community report: upright picture
+with correct colour, ro.camera.sensor_orientation left at 0.
+
+This replaces an earlier version of this patch that selected
+ov9734_MIRROR_HV and changed sensor_output_dataformat to RAW_R. That was
+wrong twice over. It mirrored the horizontal axis as well, which Amazon
+does not do and which leaves the image left-right reversed, and the
+matching Bayer change was carried over from the OV02B10 where both axes
+really do move. It looked upright because a horizontal mirror is easy to
+miss on a front-facing camera; the red/blue swap it introduced is a large
+part of the colour trouble reported on crown.
+
+Applies to checkers as well, which shares this driver and is also a
+multimodal device, but remains unverified there.
+
+Apply from the kernel tree (kernel/amazon/mt8163-4.9):
+    patch -p1 < 0014-imgsensor-ov9734-vertical-flip.patch
+
+--- a/drivers/misc/mediatek/imgsensor/src/mt8163/ov9734_mipi_raw/ov9734mipiraw_Sensor.h
++++ b/drivers/misc/mediatek/imgsensor/src/mt8163/ov9734_mipi_raw/ov9734mipiraw_Sensor.h
+@@ -16,11 +16,16 @@
+ #ifndef _OV9734MIPI_SENSOR_H
+ #define _OV9734MIPI_SENSOR_H
+
+-#if defined(CONFIG_CAMERA_MULTIMODAL)
++/*
++ * Unconditional on purpose. This used to be selected by
++ * CONFIG_CAMERA_MULTIMODAL, which is "default n" and set by no Echo Show
++ * defconfig, so the sensor always fell through to MIRROR_NORMAL and read
++ * out upside down. The multimodal branch is the one meant for these
++ * devices. Enabling the symbol instead would also change
++ * SUPPORT_I2C_BUS_NUM2 and skip the CheckIsAlive ioctl in
++ * kd_sensorlist.c, which is not wanted.
++ */
+ #define ov9734_MIRROR_V
+-#else
+-#define ov9734_MIRROR_NORMAL
+-#endif
+
+
+ #if defined(ov9734_MIRROR_NORMAL)
+--- a/drivers/misc/mediatek/imgsensor/src/mt8163/ov9734_mipi_raw/ov9734mipiraw_Sensor.c
++++ b/drivers/misc/mediatek/imgsensor/src/mt8163/ov9734_mipi_raw/ov9734mipiraw_Sensor.c
+@@ -155,7 +155,7 @@
+
+
+ static imgsensor_struct imgsensor = {
+-        .mirror = IMAGE_NORMAL,                                    /* mirrorflip information */
++        .mirror = IMAGE_V_MIRROR,                                  /* mirrorflip information */
+         .sensor_mode = IMGSENSOR_MODE_INIT,                        /* IMGSENSOR_MODE enum value,record current sensor mode,such as: INIT, Preview, Capture, Video,High Speed Video, Slim Video */
+         .shutter = 0x3D0,                                          /* current shutter */
+         .gain = 0x100,                                             /* current gain */

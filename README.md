@@ -58,11 +58,12 @@ the kernel struct patch (0001) - their sensor driver is already in the tree
 and selected - and expect to redo the color calibration, which is specific
 to the OV02B10.
 
-**OV9734 devices need `patches/0014` for the sensor flip.** `cronos` looks
-upright because its driver flips the OV02B10 in hardware; nothing flips
-the OV9734, and `ro.camera.sensor_orientation` cannot correct it - on an
-Echo Show 8, 0 and 180 render identically inverted. Patch 0014 mirrors the
-readout in the driver instead, and is confirmed working on `crown`. It
+**OV9734 devices need `patches/0014` for the sensor flip.** Their driver
+selects its mirror setting on `CONFIG_CAMERA_MULTIMODAL`, which is
+`default n` and set by no Echo Show defconfig, so the flip Amazon intended
+for these devices is never compiled in and the sensor reads out inverted.
+`ro.camera.sensor_orientation` cannot correct it. Patch 0014 makes the
+vertical flip unconditional, and is confirmed working on `crown`. It
 changes the driver `checkers` shares, so that device is still unverified;
 see [docs/INSTALL.md](docs/INSTALL.md) step 3.
 

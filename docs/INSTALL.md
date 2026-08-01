@@ -263,36 +263,38 @@ For `checkers`/`crown` (OV9734 devices): apply only 0001 and skip 3.2 and
 3.3 entirely; their sensor driver is already in the tree and selected.
 
 **Those devices come out upside down, and the fix is in the driver, not
-the orientation property.** cronos looks upright because its driver flips
-the OV02B10 180 degrees in hardware; nothing flips the OV9734, so the
-picture arrives inverted. `ro.camera.sensor_orientation` cannot correct
-that: measured on an Echo Show 8, 0 and 180 give an identical upside-down
-image and 90 and 270 are identically rotated, so the property expresses
-the axis swap but not the 180.
-
-The in-tree OV9734 driver already supports the flip, selected by a macro
+the orientation property.** The driver picks its mirror setting like this,
 in `ov9734mipiraw_Sensor.h`:
 
 ```c
 #if defined(CONFIG_CAMERA_MULTIMODAL)
 #define ov9734_MIRROR_V
 #else
-#define ov9734_MIRROR_NORMAL     /* -> #define ov9734_MIRROR_HV */
+#define ov9734_MIRROR_NORMAL
 #endif
 ```
 
-`ov9734_MIRROR_HV` writes 0x1c to register 0x3820, mirroring both axes,
-which is the 180 degree rotation. Two things must change with it, exactly
-as they did for the OV02B10 (see `patches/0007`):
+`CONFIG_CAMERA_MULTIMODAL` is declared `default n` in
+`drivers/misc/mediatek/imgsensor/Kconfig` and is set by no Echo Show
+defconfig, so that condition is never true and every build gets
+`MIRROR_NORMAL`. Register 0x3820 gets 0x10 instead of 0x14, the flip bit
+is never set, and the sensor reads out inverted. The multimodal branch is
+the one Amazon meant for these devices.
 
-- `.mirror = IMAGE_NORMAL` becomes `.mirror = IMAGE_HV_MIRROR`
-- `.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_B` becomes
-  `..._RAW_R`, because flipping both axes shifts the Bayer phase by one
-  pixel in each direction. Skipping this gives a correctly oriented image
-  with red and blue swapped.
+`patches/0014-imgsensor-ov9734-vertical-flip.patch` makes
+`ov9734_MIRROR_V` unconditional rather than turning the symbol on, because
+the symbol reaches further than the picture: it also switches
+`SUPPORT_I2C_BUS_NUM2` from 2 to 0 and skips the CheckIsAlive ioctl in
+`kd_sensorlist.c`.
 
-`patches/0014-imgsensor-ov9734-180-degree-flip.patch` makes all three
-changes; apply it from the kernel tree alongside 0001:
+It leaves `sensor_output_dataformat` at `RAW_B`. That is deliberate and
+differs from the OV02B10 in `patches/0007`, which does need its Bayer
+phase moved: that driver flips both axes and has a live
+`set_mirror_flip()`, whereas here `.mirror` is assigned once and never
+read, and Amazon's own multimodal configuration pairs `MIRROR_V` with
+`RAW_B`. Declaring `RAW_R` here swaps red and blue.
+
+Apply it from the kernel tree alongside 0001:
 
 ```sh
 cd ~/lineage-18.1/kernel/amazon/mt8163-4.9
