@@ -273,18 +273,21 @@ as they did for the OV02B10 (see `patches/0007`):
   pixel in each direction. Skipping this gives a correctly oriented image
   with red and blue swapped.
 
-`patches/0014-imgsensor-ov9734-180-degree-flip-UNTESTED.patch` makes
-all three changes; apply it from the kernel tree alongside 0001:
+`patches/0014-imgsensor-ov9734-180-degree-flip.patch` makes all three
+changes; apply it from the kernel tree alongside 0001:
 
 ```sh
 cd ~/lineage-18.1/kernel/amazon/mt8163-4.9
 patch -p1 < ~/lineageos-echo-show-camera/patches/0014-*.patch
 ```
 
-**It is untested** - I have no OV9734 device, and it assumes `checkers`
-and `crown` share the same sensor mounting. If one of them is already
-upright it will need to become conditional on the device instead of
-changing the shared driver. Reports either way are very welcome.
+Leave `ro.camera.sensor_orientation` at 0 with this applied: the frames
+arrive upright from the sensor, so nothing should rotate them.
+
+Confirmed on `crown` (Echo Show 8). Not yet confirmed on `checkers`, which
+shares this driver - if that device is mounted the other way, this will
+invert a picture that was already correct, and the selection will need to
+become conditional per device. Reports welcome.
 
 ## Step 4: apply the ROM patches
 

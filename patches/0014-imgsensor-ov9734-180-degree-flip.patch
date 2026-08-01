@@ -1,4 +1,4 @@
-UNTESTED: imgsensor: ov9734: mirror both axes for the 180 degree mounting
+imgsensor: ov9734: mirror both axes for the 180 degree mounting
 
 The OV9734 devices (checkers, crown) produce an upside-down picture. The
 sensor is mounted rotated 180 degrees and nothing compensates, exactly as
@@ -23,16 +23,16 @@ Mirroring both axes shifts the Bayer phase by one pixel in each direction,
 so the native B ordering reads out as R. Changing the mirror alone gives a
 correctly oriented image with red and blue swapped.
 
-*** THIS IS UNTESTED. *** I have no OV9734 device. It is derived by
-analogy with the OV02B10 fix, which needed exactly these three changes.
-It also assumes checkers and crown share the same sensor mounting, which
-is unverified - if one of them is already upright, this needs to become
-conditional on the device rather than applying to the shared driver.
+Confirmed working on crown (Echo Show 8) by a community report: upright
+picture with correct colour, with ro.camera.sensor_orientation back at 0.
 
-Reports either way are very welcome.
+Still unverified on checkers (Echo Show 5 1st gen), which shares this
+driver. If that device turns out to be mounted the other way and this
+flips a picture that was already upright, the selection needs to become
+conditional on the device rather than changing the shared driver.
 
 Apply from the kernel tree (kernel/amazon/mt8163-4.9):
-    patch -p1 < 0014-imgsensor-ov9734-180-degree-flip-UNTESTED.patch
+    patch -p1 < 0014-imgsensor-ov9734-180-degree-flip.patch
 
 --- a/drivers/misc/mediatek/imgsensor/src/mt8163/ov9734_mipi_raw/ov9734mipiraw_Sensor.h
 +++ b/drivers/misc/mediatek/imgsensor/src/mt8163/ov9734_mipi_raw/ov9734mipiraw_Sensor.h

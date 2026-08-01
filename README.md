@@ -49,7 +49,7 @@ fixed here, layer by layer.
 | Device | Codename | Sensor | Status |
 | --- | --- | --- | --- |
 | Echo Show 5 (2nd Generation) | `cronos` | OV02B10 | working, verified end to end |
-| Echo Show 8 | `crown` | OV9734 | **working, community reported** - capture confirmed; needs the orientation below |
+| Echo Show 8 | `crown` | OV9734 | working, community verified - apply `patches/0014` for the sensor flip |
 | Echo Show 5 | `checkers` | OV9734 | untested; same shape as `crown`, no driver port needed |
 | Echo Spot | `rook` | GC0312 | untested; different sensor again |
 
@@ -58,13 +58,13 @@ the kernel struct patch (0001) - their sensor driver is already in the tree
 and selected - and expect to redo the color calibration, which is specific
 to the OV02B10.
 
-**OV9734 devices come out upside down and need a driver change, not a
-property change.** `cronos` looks upright because its driver flips the
-OV02B10 in hardware; nothing flips the OV9734.
-`ro.camera.sensor_orientation` cannot fix it - measured on an Echo Show 8,
-0 and 180 are identically inverted. The in-tree OV9734 driver already has
-the flip behind a macro; see [docs/INSTALL.md](docs/INSTALL.md) step 3.
-Untested, reports welcome.
+**OV9734 devices need `patches/0014` for the sensor flip.** `cronos` looks
+upright because its driver flips the OV02B10 in hardware; nothing flips
+the OV9734, and `ro.camera.sensor_orientation` cannot correct it - on an
+Echo Show 8, 0 and 180 render identically inverted. Patch 0014 mirrors the
+readout in the driver instead, and is confirmed working on `crown`. It
+changes the driver `checkers` shares, so that device is still unverified;
+see [docs/INSTALL.md](docs/INSTALL.md) step 3.
 
 ## Prerequisites
 
