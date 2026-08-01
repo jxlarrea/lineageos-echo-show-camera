@@ -58,13 +58,13 @@ the kernel struct patch (0001) - their sensor driver is already in the tree
 and selected - and expect to redo the color calibration, which is specific
 to the OV02B10.
 
-**OV9734 devices need a different sensor orientation.** `cronos` reports
-`ro.camera.sensor_orientation=0` because its driver flips the sensor 180
-degrees in hardware; nothing flips the OV9734, so leaving it at 0 gives an
-upside-down picture. Set it to `180` in
-`shims/libcmdqevent/camera-bringup.rc` (details in
-[docs/INSTALL.md](docs/INSTALL.md) step 3). Reports of the value that ends
-up correct on each device are welcome.
+**OV9734 devices come out upside down and need a driver change, not a
+property change.** `cronos` looks upright because its driver flips the
+OV02B10 in hardware; nothing flips the OV9734.
+`ro.camera.sensor_orientation` cannot fix it - measured on an Echo Show 8,
+0 and 180 are identically inverted. The in-tree OV9734 driver already has
+the flip behind a macro; see [docs/INSTALL.md](docs/INSTALL.md) step 3.
+Untested, reports welcome.
 
 ## Prerequisites
 

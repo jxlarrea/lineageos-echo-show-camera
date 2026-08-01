@@ -244,14 +244,36 @@ Things NOT to do in this step, because each looks plausible:
 For `checkers`/`crown` (OV9734 devices): apply only 0001 and skip 3.2 and
 3.3 entirely; their sensor driver is already in the tree and selected.
 
-**Those devices also need a different sensor orientation.** cronos reports
-`ro.camera.sensor_orientation=0` because its driver flips the sensor 180
-degrees in hardware; without that flip the picture comes out upside down,
-so use `180`. Change it in
-`shims/libcmdqevent/camera-bringup.rc` before step 9 (or edit
-`/system/etc/init/camera-bringup.rc` on the device and reboot). It is a
-`ro.` property, so `setprop` will not override it once set - the value has
-to come from the rc at boot.
+**Those devices come out upside down, and the fix is in the driver, not
+the orientation property.** cronos looks upright because its driver flips
+the OV02B10 180 degrees in hardware; nothing flips the OV9734, so the
+picture arrives inverted. `ro.camera.sensor_orientation` cannot correct
+that: measured on an Echo Show 8, 0 and 180 give an identical upside-down
+image and 90 and 270 are identically rotated, so the property expresses
+the axis swap but not the 180.
+
+The in-tree OV9734 driver already supports the flip, selected by a macro
+in `ov9734mipiraw_Sensor.h`:
+
+```c
+#if defined(CONFIG_CAMERA_MULTIMODAL)
+#define ov9734_MIRROR_V
+#else
+#define ov9734_MIRROR_NORMAL     /* -> #define ov9734_MIRROR_HV */
+#endif
+```
+
+`ov9734_MIRROR_HV` writes 0x1c to register 0x3820, mirroring both axes,
+which is the 180 degree rotation. Two things must change with it, exactly
+as they did for the OV02B10 (see `patches/0007`):
+
+- `.mirror = IMAGE_NORMAL` becomes `.mirror = IMAGE_HV_MIRROR`
+- `.sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_B` becomes
+  `..._RAW_R`, because flipping both axes shifts the Bayer phase by one
+  pixel in each direction. Skipping this gives a correctly oriented image
+  with red and blue swapped.
+
+This is untested - I have no OV9734 device. Reports welcome.
 
 ## Step 4: apply the ROM patches
 
