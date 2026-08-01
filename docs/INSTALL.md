@@ -20,7 +20,7 @@ depending on hardware and bandwidth). Everything else is minutes.
 
 ## Step 0: starting point, host dependencies, and backups
 
-You need an Echo Show 5 2nd gen (`cronos`) that:
+You need one of the three supported Echo Show devices that:
 
 - runs unofficial LineageOS 18.1 from [amazon-oss](https://github.com/amazon-oss)
 - was unlocked with amonet and still boots TWRP
@@ -29,13 +29,31 @@ You need an Echo Show 5 2nd gen (`cronos`) that:
 Verify:
 
 ```sh
-adb -s <serial> shell getprop ro.product.device       # cronos
+adb -s <serial> shell getprop ro.product.device       # cronos, crown or checkers
 adb -s <serial> shell getprop ro.build.version.release # 11
 adb -s <serial> root && adb -s <serial> shell id      # uid=0(root)
 ```
 
 If any of that fails, stop and fix it first. If you cannot boot TWRP, do not
 proceed at all: a bad flash with no recovery path bricks the device.
+
+### Your device codename
+
+The first `getprop` above printed it. Export it now, because nearly every
+command below follows it: the build target, the vendor tree path, the
+firmware dump the blobs come from, and the build output path.
+
+```sh
+export CAMERA_DEVICE=cronos        # or crown, or checkers
+```
+
+Like `MKE2FS_CONFIG` in step 7, this lives in your shell. **Re-export it in
+every new terminal**, or the commands will silently act on the wrong device.
+This guide was verified end to end on `cronos`; `crown` is confirmed working
+by a community report.
+
+Where a step applies to only one sensor, it says so explicitly - steps 3.2,
+3.3, 9.2 and 9.3 are the ones that differ.
 
 ### Host dependencies
 
@@ -153,7 +171,7 @@ repo sync -c --no-clone-bundle --no-tags -j8
 ./patches/apply.sh
 
 . build/envsetup.sh
-breakfast lineage_cronos-userdebug
+breakfast lineage_${CAMERA_DEVICE}-userdebug
 ```
 
 [docs/building.md](building.md) explains each manifest correction and the
@@ -168,7 +186,7 @@ fails much later, in a way that does not name the cause:
 
 ```sh
 for d in build frameworks/av hardware/interfaces prebuilts/tools \
-         prebuilts/clang kernel/amazon/mt8163-4.9 device/amazon/cronos; do
+         prebuilts/clang kernel/amazon/mt8163-4.9 device/amazon/$CAMERA_DEVICE; do
     [ -d "$d" ] || echo "MISSING: $d"
 done
 ```
@@ -343,22 +361,22 @@ happens **before** the build, so the ROM you flash already contains it.
 ```sh
 cd ~/lineageos-echo-show-camera
 
-# 6.0  If you are NOT on an Echo Show 5 2nd gen, say so once. Every script
-#      below reads this: the vendor tree path and the firmware dump both
-#      follow it. Defaults to cronos.
-export CAMERA_DEVICE=cronos        # or crown, or checkers
+# 6.0  Confirm your codename is still exported (step 0). If this prints
+#      nothing, the rest of this step will build the wrong device's tree.
+echo "$CAMERA_DEVICE"
 
 # 6.1  Declare the blobs to the build, then regenerate the vendor
 #      makefiles from that list (appending alone does nothing - the build
-#      reads the generated vendor/amazon/cronos/*.mk, not this file)
-cat patches/cronos-camera-proprietary-files.txt \
-    >> ~/lineage-18.1/device/amazon/cronos/proprietary-files.txt
-(cd ~/lineage-18.1/device/amazon/cronos && ./setup-makefiles.sh)
+#      reads the generated vendor/amazon/$CAMERA_DEVICE/*.mk, not this file)
+cat patches/camera-proprietary-files.txt \
+    >> ~/lineage-18.1/device/amazon/$CAMERA_DEVICE/proprietary-files.txt
+(cd ~/lineage-18.1/device/amazon/$CAMERA_DEVICE && ./setup-makefiles.sh)
 
 # 6.2  Download the stock camera stack from your device's own firmware
-#      dump (45 libraries, ~17 MB, into stock/lib). Pass your codename:
-#      the image tuning inside these blobs is per sensor, so another
-#      device's blobs give a working camera with visibly wrong colour.
+#      dump (45 libraries, ~17 MB, into stock/lib). It follows
+#      CAMERA_DEVICE: the image tuning inside these blobs is per sensor,
+#      so another device's blobs give a working camera with visibly
+#      wrong colour that no calibration can correct.
 #      These are proprietary Amazon/MediaTek binaries: stock/ is
 #      gitignored, keep it that way.
 scripts/fetch-camera-blobs.sh
@@ -382,12 +400,12 @@ it so the repointed libraries also get the shim entry.
 Verify:
 
 ```sh
-ls ~/lineage-18.1/vendor/amazon/cronos/proprietary/vendor/lib/libdpframework_cam.so
+ls ~/lineage-18.1/vendor/amazon/$CAMERA_DEVICE/proprietary/vendor/lib/libdpframework_cam.so
 # should be about 333 KB - if it is ~11 KB you built the shelved adapter
 # from shims/libdpframework_cam/ instead; see that directory's README
 
 ~/lineage-18.1/prebuilts/extract-tools/linux-x86/bin/patchelf-0_9 --print-needed \
-    ~/lineage-18.1/vendor/amazon/cronos/proprietary/vendor/lib/libcam.client.so \
+    ~/lineage-18.1/vendor/amazon/$CAMERA_DEVICE/proprietary/vendor/lib/libcam.client.so \
     | grep -E 'libcamera_shim|libdpframework'
 # libcamera_shim.so
 # libdpframework_cam.so
@@ -397,7 +415,8 @@ If `libcam.client.so` still says plain `libdpframework.so`, step 6.4 did
 not run against this tree.
 
 ```sh
-grep -c 'libcam\|dpframework_cam' ~/lineage-18.1/vendor/amazon/cronos/cronos-vendor.mk
+grep -c 'libcam\|dpframework_cam' \
+    ~/lineage-18.1/vendor/amazon/$CAMERA_DEVICE/$CAMERA_DEVICE-vendor.mk
 # a non-zero count: the generated vendor makefile knows about the blobs
 ```
 
@@ -427,7 +446,7 @@ again.
 ```sh
 cd ~/lineage-18.1
 . build/envsetup.sh
-lunch lineage_cronos-userdebug
+lunch lineage_${CAMERA_DEVICE}-userdebug
 
 # The tree's mke2fs is from 2019 and reads the host's /etc/mke2fs.conf,
 # which on a current distribution enables features it does not know
@@ -444,8 +463,8 @@ if you come back to a fresh terminal.
 Two outputs matter:
 
 ```sh
-ls -la out/target/product/cronos/lineage-18.1-*.zip   # the ROM, for TWRP
-ls -la out/target/product/cronos/boot.img             # the patched kernel
+ls -la out/target/product/$CAMERA_DEVICE/lineage-18.1-*.zip  # the ROM, for TWRP
+ls -la out/target/product/$CAMERA_DEVICE/boot.img            # the patched kernel
 ```
 
 **Build `userdebug`, not `user`.** This work is verified on a userdebug
@@ -461,7 +480,7 @@ ROM zip first. Reboot to TWRP (`adb reboot recovery`), then either sideload
 it:
 
 ```sh
-adb sideload out/target/product/cronos/lineage-18.1-*.zip
+adb sideload out/target/product/$CAMERA_DEVICE/lineage-18.1-*.zip
 ```
 
 or push it and install from TWRP's own file browser. This is a dirty flash

@@ -60,7 +60,7 @@ while read -r rel; do
     [[ -f "$src" ]] || { echo "missing blob: $src" >&2; exit 1; }
     adb push "$src" "/$rel" >/dev/null
     count=$((count + 1))
-done < <(grep -E '^vendor/' "$(dirname "$0")/../patches/cronos-camera-proprietary-files.txt")
+done < <(grep -E '^vendor/' "$(dirname "$0")/../patches/camera-proprietary-files.txt")
 echo "   $count blobs"
 
 # The passthrough -impl module links against both backends (-legacy for the

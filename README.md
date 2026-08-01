@@ -152,9 +152,9 @@ orientation, HAL1 native handle flag).
 [patches/README.md](patches/README.md) explains what each change is for.
 
 The blob list also has to be declared and the vendor makefiles regenerated
-(`device/amazon/cronos/setup-makefiles.sh`) - appending to
+(`device/amazon/<device>/setup-makefiles.sh`) - appending to
 `proprietary-files.txt` alone does nothing, because the build reads the
-generated `vendor/amazon/cronos/*.mk`.
+generated `vendor/amazon/<device>/*.mk`.
 
 ### Layer 3: vendor blobs, then on-device tuning
 

@@ -1,6 +1,10 @@
-# Camera blobs for cronos (Echo Show 5 2nd gen)
+# Camera blobs for the Echo Show camera stack (cronos, crown, checkers)
 #
-# Source: Amazon/cronos/cronos:6.0/NS6573/6567:user/amz-p,release-keys
+# The paths are identical on all three devices; the blobs themselves are
+# not, and must come from the device's own firmware dump. See
+# scripts/device-config.sh.
+#
+# Reference source: Amazon/cronos/cronos:6.0/NS6573/6567:user/amz-p,release-keys
 # Stock camera stack is MediaTek's legacy camera1 HAL, built for API 25
 # (Android 7.1) even though the surrounding platform is Amazon's "amz-p"
 # (Android 9) branch. OV9734 static metadata lives in libcam.halsensor.so.

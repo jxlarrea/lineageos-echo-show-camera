@@ -10,6 +10,7 @@ Follow the maintainer's own instructions in
 with the corrections below.
 
 ```sh
+export CAMERA_DEVICE=cronos     # your codename; see docs/INSTALL.md step 0
 mkdir -p lineage-18.1 && cd lineage-18.1
 repo init -u https://github.com/LineageOS/android.git -b lineage-18.1 --depth=1
 git clone https://github.com/amazon-oss/local_manifests.git -b lineage-18.1 \
@@ -17,7 +18,7 @@ git clone https://github.com/amazon-oss/local_manifests.git -b lineage-18.1 \
 repo sync -c --no-clone-bundle --no-tags -j8
 ./patches/apply.sh          # required, and again after every sync
 . build/envsetup.sh
-breakfast lineage_cronos-userdebug
+breakfast lineage_${CAMERA_DEVICE}-userdebug   # cronos, crown or checkers
 ```
 
 Put the tree on a volume with room for roughly 150 GB. Prefer `-j8` over
@@ -128,12 +129,12 @@ m libcamera_shim \
   camera.device@3.4-impl camera.device@3.5-impl \
   camera.device@3.4-external-impl camera.device@3.5-external-impl \
   camera.device@3.6-external-impl \
-  out/target/product/cronos/system/vendor/etc/vintf/manifest.xml
+  out/target/product/$CAMERA_DEVICE/system/vendor/etc/vintf/manifest.xml
 ```
 
 Roughly two minutes once `out/` is warm. Note that module-only builds do not run
 `PRODUCT_COPY_FILES`, so vendor blobs are not staged into `out/` - push them from
-`vendor/amazon/cronos/proprietary/` instead, which is what
+`vendor/amazon/$CAMERA_DEVICE/proprietary/` instead, which is what
 `scripts/install-camera.sh` does.
 
 ## Do not trust wrapper exit codes

@@ -5,7 +5,7 @@
 # The usual route for proprietary files is extract-files.sh against a stock
 # image, which means downloading a full firmware dump. The camera stack does
 # not need that: fetch-camera-blobs.sh pulls exactly the 45 libraries listed
-# in patches/cronos-camera-proprietary-files.txt from the public dump, and
+# in patches/camera-proprietary-files.txt from the public dump, and
 # this maps them onto the destination paths that list declares (the stock
 # layout is pre-Treble, so /system/vendor/lib becomes /vendor/lib and
 # camera.mt8163.so lands in /vendor/lib/hw).
@@ -17,7 +17,7 @@ set -euo pipefail
 TREE="${1:-${LINEAGE_TREE:-$HOME/lineage-18.1}}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$HERE/stock/lib"
-LIST="$HERE/patches/cronos-camera-proprietary-files.txt"
+LIST="$HERE/patches/camera-proprietary-files.txt"
 . "$(dirname "$0")/device-config.sh"
 DEST="$(device_vendor_dir "$TREE")"
 

@@ -73,7 +73,7 @@ PRODUCT_PACKAGES += \
 (`LegacyCameraProviderImpl_2_4.cpp`), which is what loads `camera.mt8163.so`
 through libhardware.
 
-Add to `device/amazon/cronos/BoardConfig.mk`:
+Add to `device/amazon/<device>/BoardConfig.mk`:
 
 ```make
 # Camera
@@ -83,10 +83,12 @@ TARGET_NEEDS_LEGACY_CAMERA_HAL1_DYN_NATIVE_HANDLE := true
 ## 3. The blobs are not extracted
 
 The stock camera stack is absent from
-`vendor/amazon/cronos`. Append the contents of
-`cronos-camera-proprietary-files.txt` to
-`device/amazon/cronos/proprietary-files.txt`, then re-run `extract-files.sh`
-against a stock image (see `scripts/fetch-camera-blobs.sh`).
+`vendor/amazon/<device>`. Append the contents of
+`camera-proprietary-files.txt` to
+`device/amazon/<device>/proprietary-files.txt`, then re-run `extract-files.sh`
+against a stock image (see `scripts/fetch-camera-blobs.sh`). The paths in that
+list are the same on all three devices; the blobs behind them are not, and must
+come from the device's own firmware (see `scripts/device-config.sh`).
 
 45 libraries are required: the 34 `libcam*`/`libmtkcam*` libraries plus 11
 transitive MediaTek dependencies (`lib3a`, `libfeatureio`, `libfeatureiodrv`,
