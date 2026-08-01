@@ -343,6 +343,11 @@ happens **before** the build, so the ROM you flash already contains it.
 ```sh
 cd ~/lineageos-echo-show-camera
 
+# 6.0  If you are NOT on an Echo Show 5 2nd gen, say so once. Every script
+#      below reads this: the vendor tree path and the firmware dump both
+#      follow it. Defaults to cronos.
+export CAMERA_DEVICE=cronos        # or crown, or checkers
+
 # 6.1  Declare the blobs to the build, then regenerate the vendor
 #      makefiles from that list (appending alone does nothing - the build
 #      reads the generated vendor/amazon/cronos/*.mk, not this file)
@@ -356,7 +361,7 @@ cat patches/cronos-camera-proprietary-files.txt \
 #      device's blobs give a working camera with visibly wrong colour.
 #      These are proprietary Amazon/MediaTek binaries: stock/ is
 #      gitignored, keep it that way.
-scripts/fetch-camera-blobs.sh cronos        # or crown, or checkers
+scripts/fetch-camera-blobs.sh
 
 # 6.3  Place them at the paths the blob list declares
 scripts/install-blobs-to-tree.sh ~/lineage-18.1

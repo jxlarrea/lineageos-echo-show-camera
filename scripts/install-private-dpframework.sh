@@ -25,10 +25,12 @@
 set -euo pipefail
 
 TREE="${1:-${LINEAGE_TREE:-$HOME/lineage-18.1}}"
-PROP="$TREE/vendor/amazon/cronos/proprietary/vendor/lib"
+. "$(dirname "$0")/device-config.sh"
+PROP="$(device_vendor_dir "$TREE")/vendor/lib"
 PATCHELF="$TREE/prebuilts/extract-tools/linux-x86/bin/patchelf-0_9"
-DUMP_BRANCH="cronos-user-6.0-NS6573-6567-amz-p,release-keys"
-RAW="https://raw.githubusercontent.com/el-vertedero/amazon_cronos_dump/$DUMP_BRANCH"
+# libdpframework.so is byte identical across the cronos and crown dumps,
+# so the binary patch offsets below hold for both.
+RAW="$DUMP_RAW"
 
 PRIVATE=libdpframework_cam.so
 

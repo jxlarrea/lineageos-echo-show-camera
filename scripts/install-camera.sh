@@ -20,7 +20,8 @@ if [[ -z "$DEVICE" ]]; then
     exit 2
 fi
 
-OUT="$TREE/out/target/product/cronos"
+. "$(dirname "$0")/device-config.sh"
+OUT="$(device_out_dir "$TREE")"
 BACKUP="backups/$(date +%Y%m%d-%H%M%S)"
 mkdir -p "$BACKUP"
 
@@ -51,11 +52,11 @@ echo "   host copy: $BACKUP/manifest.xml"
 # are not staged in out/. They come straight from the vendor tree instead; the
 # list is the same one appended to proprietary-files.txt.
 echo "== pushing camera blobs =="
-BLOBS="$TREE/vendor/amazon/cronos/proprietary/vendor/lib"
+BLOBS="$(device_vendor_dir "$TREE")/vendor/lib"
 adb shell 'mkdir -p /vendor/lib/hw'
 count=0
 while read -r rel; do
-    src="$TREE/vendor/amazon/cronos/proprietary/$rel"
+    src="$(device_vendor_dir "$TREE")/$rel"
     [[ -f "$src" ]] || { echo "missing blob: $src" >&2; exit 1; }
     adb push "$src" "/$rel" >/dev/null
     count=$((count + 1))

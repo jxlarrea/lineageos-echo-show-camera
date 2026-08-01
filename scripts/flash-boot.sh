@@ -88,7 +88,8 @@ if [[ -z "$DEVICE" ]]; then
     exit 2
 fi
 
-NEW="$TREE/out/target/product/cronos/boot.img"
+. "$(dirname "$0")/device-config.sh"
+NEW="$(device_out_dir "$TREE")/boot.img"
 PART=/dev/block/by-name/boot
 RECOVERY_PART=/dev/block/by-name/recovery
 WORK="$(mktemp -d)"

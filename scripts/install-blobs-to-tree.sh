@@ -18,7 +18,8 @@ TREE="${1:-${LINEAGE_TREE:-$HOME/lineage-18.1}}"
 HERE="$(cd "$(dirname "$0")/.." && pwd)"
 SRC="$HERE/stock/lib"
 LIST="$HERE/patches/cronos-camera-proprietary-files.txt"
-DEST="$TREE/vendor/amazon/cronos/proprietary"
+. "$(dirname "$0")/device-config.sh"
+DEST="$(device_vendor_dir "$TREE")"
 
 if [[ ! -d "$SRC" ]]; then
     echo "no blobs at $SRC - run scripts/fetch-camera-blobs.sh first" >&2
