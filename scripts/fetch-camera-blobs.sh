@@ -8,8 +8,31 @@
 #
 set -euo pipefail
 
-REPO="el-vertedero/amazon_cronos_dump"
-BRANCH="cronos-user-6.0-NS6573-6567-amz-p,release-keys"
+# Each device needs the blobs from ITS OWN firmware, because the tuning
+# inside libcameracustom.so is per sensor: cronos carries ov02b10_mipi_raw,
+# crown and checkers carry ov9734_mipi_raw. Using another device's blobs
+# gives a working camera with visibly wrong colour, because every AWB, CCM,
+# shading and black level table describes a sensor you do not have.
+DEVICE="${1:-cronos}"
+case "$DEVICE" in
+    cronos)
+        REPO="el-vertedero/amazon_cronos_dump"
+        BRANCH="cronos-user-6.0-NS6573-6567-amz-p,release-keys"
+        ;;
+    crown)
+        REPO="el-vertedero/amazon_crown_dump"
+        BRANCH="crown-user-6.0-NS6565-5565-amz-p,release-keys"
+        ;;
+    checkers)
+        REPO="el-vertedero/amazon_checkers_dump"
+        BRANCH="checkers-user-6.0-NS6534-2264-amz-p,release-keys"
+        ;;
+    *)
+        echo "usage: $0 [cronos|crown|checkers]" >&2
+        exit 2
+        ;;
+esac
+echo "fetching $DEVICE camera blobs from $REPO"
 RAW="https://raw.githubusercontent.com/${REPO}/${BRANCH}"
 
 OUT="stock/lib"

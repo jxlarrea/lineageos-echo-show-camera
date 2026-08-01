@@ -350,10 +350,13 @@ cat patches/cronos-camera-proprietary-files.txt \
     >> ~/lineage-18.1/device/amazon/cronos/proprietary-files.txt
 (cd ~/lineage-18.1/device/amazon/cronos && ./setup-makefiles.sh)
 
-# 6.2  Download the stock camera stack from the public firmware dump
-#      (45 libraries, ~17 MB, into stock/lib). These are proprietary
-#      Amazon/MediaTek binaries: stock/ is gitignored, keep it that way.
-scripts/fetch-camera-blobs.sh
+# 6.2  Download the stock camera stack from your device's own firmware
+#      dump (45 libraries, ~17 MB, into stock/lib). Pass your codename:
+#      the image tuning inside these blobs is per sensor, so another
+#      device's blobs give a working camera with visibly wrong colour.
+#      These are proprietary Amazon/MediaTek binaries: stock/ is
+#      gitignored, keep it that way.
+scripts/fetch-camera-blobs.sh cronos        # or crown, or checkers
 
 # 6.3  Place them at the paths the blob list declares
 scripts/install-blobs-to-tree.sh ~/lineage-18.1
@@ -517,11 +520,13 @@ cd ~/lineageos-echo-show-camera
 shims/libcmdqevent/build.sh <serial>
 scripts/install-cmdq-event-shim.sh <serial>
 
-# 9.2  Neutralize the double white balance in the AWB reference
+# 9.2  cronos ONLY - neutralize the double white balance in the AWB
+#      reference. See the note below before running these on any other
+#      device.
 scripts/patch-awb-d65.sh <serial>
 
-# 9.3  Correct the black level for the OV02B10 (the stock tuning leaves a
-#      ~30% grey floor over every image)
+# 9.3  cronos ONLY - correct the black level for the OV02B10 (the stock
+#      tuning leaves a ~30% grey floor over every image)
 scripts/patch-obc-pedestal.sh <serial>
 
 adb -s <serial> reboot
@@ -529,6 +534,17 @@ adb -s <serial> reboot
 
 Each script prints what it changed and refuses to proceed past an
 unexpected state; 9.2 and 9.3 keep a `.orig` backup on the device.
+
+> **9.2 and 9.3 are corrections for `cronos` specifically, and will make
+> the picture worse anywhere else.** Both exist because cronos runs an
+> OV02B10 against tuning written for the OV9734: the white balance is
+> applied twice, and the black level subtracts the OV9734's pedestal
+> instead of the OV02B10's. On `crown` and `checkers` the sensor really is
+> an OV9734, so their own blobs are already correct and these patches
+> introduce the very mismatch they were written to remove. If you ran them
+> by mistake, undo both with
+> `scripts/patch-awb-d65.sh <serial> --restore`, which puts back the
+> untouched library the two of them share.
 
 If you would rather not reflash the whole ROM while iterating, or you
 changed something in the vendor tree after building,
