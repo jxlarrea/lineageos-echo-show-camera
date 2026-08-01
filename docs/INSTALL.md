@@ -571,6 +571,11 @@ unexpected state; 9.2 and 9.3 keep a `.orig` backup on the device.
 > by mistake, undo both with
 > `scripts/patch-awb-d65.sh <serial> --restore`, which puts back the
 > untouched library the two of them share.
+>
+> This is now a community observation rather than a prediction: a `crown`
+> user ran neither script and reports correct color under artificial
+> light, with daylight still to be checked. If you are on an OV9734
+> device, expect to need nothing here.
 
 If you would rather not reflash the whole ROM while iterating, or you
 changed something in the vendor tree after building,
@@ -610,8 +615,14 @@ cold-boot capture cycle and collects the relevant logs.
 
 ## Step 11: calibrate the color for your unit (optional)
 
-The defaults were calibrated on one device and land close on any unit of
-the same model, but panel aging and lighting differ. If greys look tinted:
+This step is for `cronos`. The defaults in `camera-bringup.rc` were
+calibrated on one OV02B10 unit, on top of the two corrections in step 9,
+and land close on any unit of the same model. OV9734 devices run their own
+tuning and have been reported to look correct with no trim at all, so do
+not go looking for a problem here - and note that one `crown` user found
+these properties had no visible effect on their device.
+
+If greys look tinted:
 
 1. Point the camera at anything grey or white under your normal lighting.
 2. Take a snapshot, look at it, and adjust:

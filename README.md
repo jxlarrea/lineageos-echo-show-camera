@@ -54,9 +54,11 @@ fixed here, layer by layer.
 | Echo Spot | `rook` | GC0312 | untested; different sensor again |
 
 Everything below is written for `cronos`. On the OV9734 devices apply only
-the kernel struct patch (0001) - their sensor driver is already in the tree
-and selected - and expect to redo the color calibration, which is specific
-to the OV02B10.
+the kernel struct patch (0001) and the sensor flip (0014) - their sensor
+driver is already in the tree and selected - and **skip** the two color
+corrections in step 9, which exist only to undo cronos running an OV02B10
+against OV9734 tuning. A `crown` user reports correct color with neither
+of them applied, so those devices should need no calibration at all.
 
 **OV9734 devices need `patches/0014` for the sensor flip.** Their driver
 selects its mirror setting on `CONFIG_CAMERA_MULTIMODAL`, which is
