@@ -1,0 +1,80 @@
+UNTESTED: imgsensor: ov9734: mirror both axes for the 180 degree mounting
+
+The OV9734 devices (checkers, crown) produce an upside-down picture. The
+sensor is mounted rotated 180 degrees and nothing compensates, exactly as
+the OV02B10 was on cronos before patches/0007.
+
+ro.camera.sensor_orientation cannot fix it. Measured on an Echo Show 8,
+all four values give only two distinct results: 0 and 180 are identically
+inverted, 90 and 270 identically rotated. The property carries the axis
+swap but the 180 component is dropped somewhere in the HAL1 path, so the
+flip has to happen in the sensor readout.
+
+The driver already supports this and simply has it turned off:
+ov9734mipiraw_Sensor.h picks a MIRROR macro, and ov9734_MIRROR_HV makes
+0x1c go to register 0x3820 instead of 0x10, mirroring both axes.
+
+Two changes must accompany it, as on the OV02B10:
+
+  .mirror                    IMAGE_NORMAL -> IMAGE_HV_MIRROR
+  .sensor_output_dataformat  RAW_B        -> RAW_R
+
+Mirroring both axes shifts the Bayer phase by one pixel in each direction,
+so the native B ordering reads out as R. Changing the mirror alone gives a
+correctly oriented image with red and blue swapped.
+
+*** THIS IS UNTESTED. *** I have no OV9734 device. It is derived by
+analogy with the OV02B10 fix, which needed exactly these three changes.
+It also assumes checkers and crown share the same sensor mounting, which
+is unverified - if one of them is already upright, this needs to become
+conditional on the device rather than applying to the shared driver.
+
+Reports either way are very welcome.
+
+Apply from the kernel tree (kernel/amazon/mt8163-4.9):
+    patch -p1 < 0014-imgsensor-ov9734-180-degree-flip-UNTESTED.patch
+
+--- a/drivers/misc/mediatek/imgsensor/src/mt8163/ov9734_mipi_raw/ov9734mipiraw_Sensor.h
++++ b/drivers/misc/mediatek/imgsensor/src/mt8163/ov9734_mipi_raw/ov9734mipiraw_Sensor.h
+@@ -19,7 +19,15 @@
+ #if defined(CONFIG_CAMERA_MULTIMODAL)
+ #define ov9734_MIRROR_V
+ #else
+-#define ov9734_MIRROR_NORMAL
++/*
++ * The sensor is mounted rotated 180 degrees on these devices, so the
++ * readout has to be mirrored in both axes or every frame arrives upside
++ * down. ro.camera.sensor_orientation cannot compensate: measured on an
++ * Echo Show 8, 0 and 180 give an identical inverted image and 90 and 270
++ * an identical rotated one, so the property carries the axis swap but not
++ * the 180. MIRROR becomes 0x1c, written to 0x3820.
++ */
++#define ov9734_MIRROR_HV
+ #endif
+ 
+ 
+--- a/drivers/misc/mediatek/imgsensor/src/mt8163/ov9734_mipi_raw/ov9734mipiraw_Sensor.c
++++ b/drivers/misc/mediatek/imgsensor/src/mt8163/ov9734_mipi_raw/ov9734mipiraw_Sensor.c
+@@ -147,7 +147,12 @@
+         .sensor_interface_type = SENSOR_INTERFACE_TYPE_MIPI,       /* sensor_interface_type */
+         .mipi_sensor_type = MIPI_OPHY_NCSI2,                       /* 0,MIPI_OPHY_NCSI2;  1,MIPI_OPHY_CSI2 */
+         .mipi_settle_delay_mode = MIPI_SETTLEDELAY_AUTO,           /* 0,MIPI_SETTLEDELAY_AUTO; 1,MIPI_SETTLEDELAY_MANNUAL */
+-        .sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_B,    /* sensor output first pixel color */
++        /* Mirroring both axes shifts the Bayer phase by one pixel in
++         * each direction, so the native B ordering reads out as R. This
++         * must change together with .mirror below; changing only the
++         * mirror gives an upright image with red and blue swapped.
++         */
++        .sensor_output_dataformat = SENSOR_OUTPUT_FORMAT_RAW_R,    /* sensor output first pixel color */
+         .mclk = 24,                                                /* mclk value, suggest 24 or 26 for 24Mhz or 26Mhz */
+         .mipi_lane_num = SENSOR_MIPI_1_LANE,                       /* mipi lane num */
+         .i2c_addr_table = {0x6c, 0x20, 0xff},                      /* record sensor support all write id addr, only supprt 4must end with 0xff */
+@@ -155,7 +160,7 @@
+ 
+ 
+ static imgsensor_struct imgsensor = {
+-        .mirror = IMAGE_NORMAL,                                    /* mirrorflip information */
++        .mirror = IMAGE_HV_MIRROR,                                 /* mirrorflip information */
+         .sensor_mode = IMGSENSOR_MODE_INIT,                        /* IMGSENSOR_MODE enum value,record current sensor mode,such as: INIT, Preview, Capture, Video,High Speed Video, Slim Video */
+         .shutter = 0x3D0,                                          /* current shutter */
+         .gain = 0x100,                                             /* current gain */
