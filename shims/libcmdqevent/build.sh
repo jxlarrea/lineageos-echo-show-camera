@@ -31,8 +31,13 @@ done
 python3 "$REPO/tools/cmdq-trace/gen_event_map.py" "$TREE/kernel/amazon/mt8163-4.9" >/dev/null
 cp "$REPO/tools/cmdq-trace/event_map.h" "$HERE/event_map.h"
 
+# -Wno-builtin-requires-header: the shim interposes fopen and is built
+# -nostdlib with its own minimal declarations, so clang's note that fopen
+# normally needs <stdio.h> does not apply. It is a warning, not an error,
+# but it was mistaken for a build failure, so it is silenced deliberately.
 "$CLANG" --target=armv7a-linux-androideabi -march=armv7-a -mthumb -Os \
     -fPIC -shared -nostdlib -fuse-ld=lld -Wl,--no-undefined \
+    -Wno-builtin-requires-header \
     -I"$HERE" -o "$OUT/libcmdqevent_shim.so" \
     "$HERE/cmdq_event_shim.c" "$OUT"/lib{c,dl,log}.so
 
