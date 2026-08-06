@@ -27,6 +27,27 @@ bad() { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; fail=$((fail + 1))
         [[ -n "${2:-}" ]] && printf '        %s\n' "$2"; return 0; }
 
 echo "checking $OUT"
+
+# "Not rebuilt yet" and "rebuilt and still wrong" produce identical failures
+# below, and the fix for each is completely different. Say which it is up
+# front: if the vendor tree is newer than the zip, the build simply has not
+# caught up and every failure below is expected.
+ZIP="$(ls -t "$OUT"/lineage-18.1-*.zip 2>/dev/null | head -1 || true)"
+VENDOR="$(device_vendor_dir "$TREE")"
+STALE=0
+if [[ -z "$ZIP" ]]; then
+    echo
+    echo "  no ROM zip in $OUT - the build has not produced one yet."
+    STALE=1
+elif [[ -d "$VENDOR" ]] && [[ -n "$(find "$VENDOR" -type f -newer "$ZIP" -print -quit 2>/dev/null)" ]]; then
+    echo
+    echo "  NOTE: files in $VENDOR are newer than"
+    echo "  $(basename "$ZIP")."
+    echo "  You have changed the tree since the last build, so the failures"
+    echo "  below are expected. Run 'mka bacon' and check again."
+    STALE=1
+fi
+
 echo
 echo "== vendor blobs (step 6) =="
 for f in vendor/lib/hw/camera.mt8163.so vendor/lib/libdpframework_cam.so; do
@@ -73,17 +94,22 @@ else
         "patch 0013 is not in this build. The camera cannot work before step 9, and a client that opens it first can wedge the device."
 fi
 
-ZIP="$(ls -t "$OUT"/lineage-18.1-*.zip 2>/dev/null | head -1 || true)"
 echo
 if (( fail == 0 )); then
     echo "$pass checks passed."
     [[ -n "$ZIP" ]] && echo "ready to flash: $ZIP"
+elif (( STALE )); then
+    echo "$fail of $((pass + fail)) checks failed, and the build is out of date."
+    echo
+    echo "This is the expected result before rebuilding. Run 'mka bacon', then"
+    echo "run this again. No re-sync and no kernel rebuild are needed."
+    exit 1
 else
     echo "$fail of $((pass + fail)) checks FAILED."
     echo
-    echo "Do not flash this build. A tree with the patches applied is not the"
-    echo "same thing as a ROM built from it - if you patched after building,"
-    echo "re-run 'mka bacon' and check again. Nothing here needs a re-sync or a"
-    echo "kernel rebuild."
+    echo "Do not flash this build. The zip is newer than everything in the"
+    echo "vendor tree, so this is not simply a build that has not caught up:"
+    echo "something in step 4 or step 6 did not reach the image. Check the"
+    echo "specific causes above."
     exit 1
 fi
