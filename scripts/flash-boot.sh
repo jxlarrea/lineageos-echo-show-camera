@@ -99,6 +99,17 @@ adb() { command adb -s "$DEVICE" "$@"; }
 
 [[ -f "$NEW" ]] || { echo "no boot.img at $NEW - run 'm bootimage'" >&2; exit 1; }
 
+# This runs against a booted Android system, not TWRP. In recovery the adb
+# state is "recovery", which "adb wait-for-device" never matches, so the
+# script would sit there forever with no output.
+state="$(command adb -s "$DEVICE" get-state 2>/dev/null | tr -d '\r' || true)"
+if [[ "$state" == "recovery" || "$state" == "sideload" ]]; then
+    echo "the device is in $state (TWRP), and this script needs a booted" >&2
+    echo "Android system with working 'adb root'. Reboot to Android first:" >&2
+    echo "    adb -s $DEVICE reboot" >&2
+    exit 1
+fi
+
 adb root >/dev/null 2>&1 || true
 adb wait-for-device
 
@@ -153,14 +164,73 @@ if not ok:
 print("   layout verified: microloader, header at 0x400, kernel at 0x800")
 PY
 
+echo "== transferring =="
+# A multi-megabyte "adb push" fails on some hosts while small pushes and large
+# pulls both succeed: it moves the bytes, prints "adb: error: failed to read
+# copy response" and exits non-zero. USB passed through to a virtual machine is
+# the usual cause. Errors here used to go to /dev/null, so set -e killed the
+# script immediately after printing "== flashing ==" and it looked like the
+# flash had happened when nothing had been written at all.
+#
+# So: never hide the transfer, always confirm what landed on the device by
+# hash, and fall back to chunks before giving up. Nothing is written to the
+# boot partition until the device holds a byte-perfect copy.
+DEST=/data/local/tmp/combined.img
+want="$(sha256sum "$WORK/combined.img" | cut -d' ' -f1)"
+
+device_hash() { adb shell "sha256sum $DEST 2>/dev/null" | cut -d' ' -f1 | tr -d '\r'; }
+
+adb shell "rm -f $DEST" >/dev/null 2>&1 || true
+adb push "$WORK/combined.img" "$DEST" || echo "   push reported an error, checking what arrived"
+
+if [[ "$(device_hash)" != "$want" ]]; then
+    echo "   the whole-file push did not verify, retrying in 1 MB chunks"
+    adb shell "rm -f $DEST" >/dev/null 2>&1 || true
+    split -b 1048576 -d -a 3 "$WORK/combined.img" "$WORK/part."
+    for chunk in "$WORK"/part.*; do
+        cname="$(basename "$chunk")"
+        chash="$(sha256sum "$chunk" | cut -d' ' -f1)"
+        for attempt in 1 2 3; do
+            adb push "$chunk" "/data/local/tmp/$cname" >/dev/null 2>&1 || true
+            got="$(adb shell "sha256sum /data/local/tmp/$cname 2>/dev/null" \
+                   | cut -d' ' -f1 | tr -d '\r')"
+            [[ "$got" == "$chash" ]] && break
+            [[ $attempt == 3 ]] && {
+                echo "   $cname will not transfer intact after 3 attempts." >&2
+                echo "   The USB link to this device is dropping data. If the host" >&2
+                echo "   is a virtual machine, try a bare-metal host or a different" >&2
+                echo "   USB port or cable. Nothing has been written to the boot" >&2
+                echo "   partition." >&2
+                exit 1
+            }
+        done
+        adb shell "cat /data/local/tmp/$cname >> $DEST && rm /data/local/tmp/$cname"
+        printf '.'
+    done
+    echo
+fi
+
+got="$(device_hash)"
+if [[ "$got" != "$want" ]]; then
+    echo "   the image on the device does not match the one built here." >&2
+    echo "     want $want" >&2
+    echo "     got  ${got:-<nothing>}" >&2
+    echo "   Refusing to flash. Nothing has been written." >&2
+    exit 1
+fi
+echo "   $size bytes on the device, sha256 verified"
+
 echo "== flashing =="
-adb push "$WORK/combined.img" /data/local/tmp/combined.img >/dev/null
-adb shell "dd if=/data/local/tmp/combined.img of=$PART bs=1M conv=fsync" 2>&1 | tail -1
+adb shell "dd if=$DEST of=$PART bs=1M conv=fsync" 2>&1 | tail -1
 
 echo "== verifying =="
-adb shell "dd if=$PART of=/data/local/tmp/rb.img bs=1 count=$size" 2>/dev/null
-adb pull /data/local/tmp/rb.img "$WORK/rb.img" >/dev/null
-adb shell "rm /data/local/tmp/combined.img /data/local/tmp/rb.img"
+# Read back in 64 KB blocks. This used to use bs=1, which issues one syscall
+# per byte and takes many minutes for an 8 MB image.
+blocks=$(( (size + 65535) / 65536 ))
+adb shell "dd if=$PART of=/data/local/tmp/rb.img bs=64k count=$blocks" 2>/dev/null
+adb pull /data/local/tmp/rb.img "$WORK/rb.raw" >/dev/null
+adb shell "rm -f $DEST /data/local/tmp/rb.img"
+head -c "$size" "$WORK/rb.raw" > "$WORK/rb.img"
 if cmp -s "$WORK/combined.img" "$WORK/rb.img"; then
     echo "   partition matches byte for byte"
 else

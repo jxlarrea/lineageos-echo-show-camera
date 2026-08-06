@@ -494,6 +494,17 @@ adb sideload out/target/product/$CAMERA_DEVICE/lineage-18.1-*.zip
 or push it and install from TWRP's own file browser. This is a dirty flash
 over the same ROM, so `/data` is preserved; no wipe is needed.
 
+If sideload stops instantly at 0% with `adb: failed to read command:
+Success`, that is a protocol mismatch between a current `adb` and the adbd
+in older TWRP builds (reported on 3.2.3-0), not a problem with the zip. Use
+the file browser route instead, which is unaffected:
+
+```sh
+adb push out/target/product/$CAMERA_DEVICE/lineage-18.1-*.zip /sdcard/
+```
+
+then Install in TWRP and pick the zip.
+
 Reboot into Android once and confirm it comes up before touching the boot
 partition - that way, if the next step goes wrong, you know the ROM itself
 was fine.
@@ -504,7 +515,9 @@ this step alone. Running the flash script below is still worth it: it
 backs the partition up first and verifies the result byte for byte, which
 the zip install does not.
 
-Boot image second, and **only** with the flash script:
+Boot image second, and **only** with the flash script. Run it from the
+**booted Android system**, not from TWRP - it reads and writes the boot
+partition through the running system and needs `adb root`:
 
 ```sh
 cd ~/lineageos-echo-show-camera
