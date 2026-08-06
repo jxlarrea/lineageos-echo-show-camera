@@ -28,8 +28,9 @@ TREE="${1:-${LINEAGE_TREE:-$HOME/lineage-18.1}}"
 . "$(dirname "$0")/device-config.sh"
 PROP="$(device_vendor_dir "$TREE")/vendor/lib"
 PATCHELF="$TREE/prebuilts/extract-tools/linux-x86/bin/patchelf-0_9"
-# libdpframework.so is byte identical across the cronos and crown dumps,
-# so the binary patch offsets below hold for both.
+# The cronos and crown dumps ship a byte identical libdpframework.so;
+# checkers ships a different build of the same size. The patcher below
+# locates its targets by pattern for that reason, so it does not care which.
 RAW="$DUMP_RAW"
 
 PRIVATE=libdpframework_cam.so
@@ -51,46 +52,60 @@ if [[ ! -f "$PROP/$PRIVATE" ]]; then
 fi
 "$PATCHELF" --print-soname "$PROP/$PRIVATE"
 
-echo "== applying the two binary patches =="
+echo "== applying the three binary patches =="
 python3 - "$PROP/$PRIVATE" <<'PYEOF'
 import sys
 
-# Both patches target the stock API 25 libdpframework.so from the cronos dump.
-# File offset = vaddr - 0x1000 in this library; all code is Thumb.
+# The patch sites are located by searching for the instruction bytes, not by
+# fixed offset. checkers ships a different build of this library from cronos
+# and crown (same 296600 bytes, different content), and everything sits at a
+# different address there: the abortPoll thunk moves by 0x20 and
+# queryEngUsages by 0xe0. Hardcoded offsets made the script abort on checkers
+# before it repointed the blobs, which then silently still linked the system
+# libdpframework.so. All code is Thumb.
 p = sys.argv[1]
 d = bytearray(open(p, 'rb').read())
 
+
+def apply(label, old, new, verify=None):
+    """Replace the single occurrence of `old` with `new`, or report why not.
+
+    `old` may be shorter than `new`, in which case it is a prefix: the match
+    locates the site and `new` overwrites the full length from there. Anything
+    beyond the prefix is checked by `verify` rather than compared literally.
+    """
+    n, already = d.count(old), d.count(new)
+    if n == 1:
+        off = d.find(old)
+        if verify:
+            err = verify(off)
+            if err:
+                sys.exit("  %s: matched at 0x%x but %s" % (label, off, err))
+        d[off:off + len(new)] = new
+        print("  patched %s at 0x%x" % (label, off))
+    elif n == 0 and already >= 1:
+        print("  %s already patched" % label)
+    else:
+        sys.exit("  %s: expected 1 match, found %d (and %d already patched). "
+                 "This is not a libdpframework.so this script knows how to "
+                 "patch." % (label, n, already))
+
+
 # 1. Device node path: the old library opens /proc/mtk_cmdq, but this kernel
 #    creates /dev/mtk_cmdq. Without this every open fails with "can't open
-#    display driver". One occurrence, NUL padding preserved.
-old = b"/proc/mtk_cmdq\x00"
-new = b"/dev/mtk_cmdq\x00\x00"
-n = d.count(old)
-if n == 1:
-    d = d.replace(old, new)
-    print("  patched device node path /proc/mtk_cmdq -> /dev/mtk_cmdq")
-elif d.count(new) == 1:
-    print("  device node path already patched")
-else:
-    sys.exit("  unexpected: %d occurrences of the /proc path" % n)
+#    display driver". NUL padding preserved so the string stays the same size.
+apply("device node path /proc/mtk_cmdq -> /dev/mtk_cmdq",
+      b"/proc/mtk_cmdq\x00", b"/dev/mtk_cmdq\x00\x00")
 
-# 2. DpPortAdapt::abortPoll made a no-op. The thunk at vaddr 0x14b2c
+# 2. DpPortAdapt::abortPoll made a no-op. The thunk
 #    (ldr r0,[r0,#0x20]; ldr r2,[r0]; ldr r2,[r2,#0x3c]; bx r2) dereferences
 #    a buffer pool pointer that is already freed on the teardown path,
 #    crashing dequeueDstBuffer's error handling. Aborting an in-flight poll
 #    early is an optimization, not a correctness requirement.
 #    Replacement: movs r0,#0; bx lr; nop; nop.
-off = 0x14b2c - 0x1000
-old = bytes.fromhex("00 6a 02 68 d2 6b 10 47".replace(" ", ""))
-new = bytes.fromhex("00 20 70 47 00 bf 00 bf".replace(" ", ""))
-cur = bytes(d[off:off + 8])
-if cur == old:
-    d[off:off + 8] = new
-    print("  patched DpPortAdapt::abortPoll thunk at 0x14b2c to a no-op")
-elif cur == new:
-    print("  abortPoll thunk already patched")
-else:
-    sys.exit("  unexpected bytes at 0x13b2c: %s" % cur.hex())
+apply("DpPortAdapt::abortPoll thunk -> no-op",
+      bytes.fromhex("006a0268d26b1047"),
+      bytes.fromhex("0020704700bf00bf"))
 
 # 3. DpDriver::queryEngUsages(uint[36]) made to report all engines idle.
 #    The stock code issues CMDQ_IOCTL_QUERY_USAGE (_IOW('x', 4, 144)), an
@@ -98,17 +113,24 @@ else:
 #    usage array garbage. Replacement zero-fills the caller's 36-word array:
 #    movs r0,#0; mov r1,sp; movs r2,#36; loop: str r0,[r1],#4; subs r2,#1;
 #    bne loop; nop.
-off = 0x1d696 - 0x1000
-old = bytes.fromhex("2868 47f6 0401 c4f2 9001 6a46 f0f7 b6ea".replace(" ", ""))
-new = bytes.fromhex("0020 6946 2422 41f8 040b 013a fbd1 00bf".replace(" ", ""))
-cur = bytes(d[off:off + 16])
-if cur == old:
-    d[off:off + 16] = new
-    print("  patched DpDriver::queryEngUsages at 0x1d696 to report idle")
-elif cur == new:
-    print("  queryEngUsages already patched")
-else:
-    sys.exit("  unexpected bytes at 0x1c696: %s" % cur.hex())
+#
+#    Only the first 12 bytes are matched. The last four are the BLX to the
+#    ioctl helper, and a BLX encodes its target as a relative offset, so those
+#    bytes legitimately differ between builds - they are f0f7b6ea on cronos
+#    and f0f73cea on checkers. Matching them too is what made this patch miss.
+#    The replacement overwrites the call regardless of where it pointed, so
+#    the tail is checked to be a BL/BLX rather than compared literally.
+def is_branch_link(off):
+    hw2 = int.from_bytes(d[off + 14:off + 16], "little")
+    if (hw2 & 0xC000) != 0xC000:
+        return "the trailing instruction is not a BL/BLX (%s)" % d[off + 12:off + 16].hex()
+    return None
+
+
+apply("DpDriver::queryEngUsages -> report idle",
+      bytes.fromhex("286847f60401c4f290016a46"),          # 12-byte prefix
+      bytes.fromhex("00206946242241f8040b013afbd100bf"),  # 16-byte replacement
+      verify=is_branch_link)
 
 open(p, 'wb').write(bytes(d))
 PYEOF

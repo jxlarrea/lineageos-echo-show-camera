@@ -44,11 +44,14 @@ for lib in "${LIBS[@]}"; do
     echo "fetching $lib.so"
     # Almost everything is under system/vendor/lib in the stock (pre-Treble)
     # layout, but a few - libhal_effects.so - sit in system/lib. Try both
-    # rather than hardcoding the exception.
-    curl -fsSL -o "$OUT/$lib.so" "$RAW/system/vendor/lib/$lib.so" ||
-        curl -fsSL -o "$OUT/$lib.so" "$RAW/system/lib/$lib.so" || {
+    # rather than hardcoding the exception. The first attempt's 404 is the
+    # normal path for those, so its error output is discarded; only failing
+    # both locations is worth reporting.
+    curl -fsSL -o "$OUT/$lib.so" "$RAW/system/vendor/lib/$lib.so" 2>/dev/null ||
+        curl -fsSL -o "$OUT/$lib.so" "$RAW/system/lib/$lib.so" 2>/dev/null || {
             rm -f "$OUT/$lib.so"
-            echo "could not fetch $lib.so from the dump" >&2
+            echo "could not fetch $lib.so from either system/vendor/lib or" >&2
+            echo "system/lib in $DUMP_REPO" >&2
             exit 1
         }
 done

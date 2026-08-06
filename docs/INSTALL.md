@@ -63,15 +63,18 @@ On Debian/Ubuntu (Debian 13 is what this was developed on):
 sudo apt update
 sudo apt install -y \
     bc bison build-essential ccache curl flex g++-multilib gcc-multilib \
-    git git-lfs gnupg gperf imagemagick libelf-dev liblz4-tool \
+    git git-lfs gnupg gperf imagemagick libelf-dev lz4 \
     libncurses-dev libsdl1.2-dev libssl-dev libxml2 libxml2-utils lzop \
     pngcrush python3 python-is-python3 rsync schedtool squashfs-tools \
     unzip xsltproc zip zlib1g-dev adb
 ```
 
-Then initialise Git LFS **before syncing anything**:
+Then set a Git identity, which `repo init` refuses to run without, and
+initialise Git LFS **before syncing anything**:
 
 ```sh
+git config --global user.email "you@example.com"
+git config --global user.name "Your Name"
 git lfs install
 ```
 
@@ -164,6 +167,9 @@ git clone https://github.com/amazon-oss/local_manifests.git -b lineage-18.1 \
 cp ~/lineageos-echo-show-camera/patches/local-manifest-fixes.xml \
     .repo/local_manifests/zz-local-fixes.xml
 
+# Expect to run this more than once. GitHub answers a sync this large with
+# "Short term server-time rate limit exceeded" partway through; re-running
+# resumes and is not a failure.
 repo sync -c --no-clone-bundle --no-tags -j8
 
 # The maintainer's own patch script, from the local_manifests clone - not
@@ -402,7 +408,7 @@ it so the repointed libraries also get the shim entry.
 Verify:
 
 ```sh
-ls ~/lineage-18.1/vendor/amazon/$CAMERA_DEVICE/proprietary/vendor/lib/libdpframework_cam.so
+ls -l ~/lineage-18.1/vendor/amazon/$CAMERA_DEVICE/proprietary/vendor/lib/libdpframework_cam.so
 # should be about 333 KB - if it is ~11 KB you built the shelved adapter
 # from shims/libdpframework_cam/ instead; see that directory's README
 

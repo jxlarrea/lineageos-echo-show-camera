@@ -50,7 +50,7 @@ fixed here, layer by layer.
 | --- | --- | --- | --- |
 | Echo Show 5 (2nd Generation) | `cronos` | OV02B10 | working, verified end to end |
 | Echo Show 8 | `crown` | OV9734 | working, community verified - apply `patches/0014` for the sensor flip |
-| Echo Show 5 | `checkers` | OV9734 | untested; same shape as `crown`, no driver port needed |
+| Echo Show 5 | `checkers` | OV9734 | untested end to end; no driver port needed, and it ships its own build of `libdpframework.so` |
 | Echo Spot | `rook` | GC0312 | untested; different sensor again |
 
 Everything below is written for `cronos`. On the OV9734 devices apply only
