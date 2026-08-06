@@ -17,6 +17,16 @@ fi
 OUTDIR="${2:-logs/$(date +%Y%m%d-%H%M%S)}"
 mkdir -p "$OUTDIR"
 
+# Check the stack is installed before testing what it does. Without this the
+# script happily reports app-side symptoms for a device where cameraserver
+# never started, which reads like a HAL bug and is not one.
+if ! "$(dirname "$0")/camera-preflight.sh" "$DEVICE"; then
+    echo
+    echo "preflight failed - fix the above first, the test below cannot succeed" >&2
+    exit 1
+fi
+echo
+
 echo "rebooting"
 adb -s "$DEVICE" reboot
 adb -s "$DEVICE" wait-for-device

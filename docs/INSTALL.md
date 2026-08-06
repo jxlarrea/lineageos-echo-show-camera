@@ -629,8 +629,23 @@ Then the functional test:
    essentially black. If it is a grey or cyan haze instead, the black-level
    patch (step 9.3) did not apply.
 
-There is also `scripts/camera-test.sh <serial>`, which runs a scripted
-cold-boot capture cycle and collects the relevant logs.
+If any of that is wrong, check the install itself before reading logs:
+
+```sh
+scripts/camera-preflight.sh <serial>
+```
+
+That verifies the things the camera depends on rather than what it did:
+cameraserver is actually running, `cameraserver.rc` no longer says
+`disabled`, the shim and bring-up rc are installed, the 45 blobs and
+`camera.mt8163.so` are in the ROM, `android.hardware.camera.front.xml`
+replaced the back-camera `android.hardware.camera.xml`, and vintf declares
+the passthrough `legacy/0` provider. Every app-side error, including
+`No available camera can be found` and `LENS_FACING_BACK verification
+failed`, is downstream of those and tells you nothing until they pass.
+
+There is also `scripts/camera-test.sh <serial>`, which runs the preflight,
+then a scripted cold-boot capture cycle, and collects the relevant logs.
 
 ## Step 11: calibrate the color for your unit (optional)
 
