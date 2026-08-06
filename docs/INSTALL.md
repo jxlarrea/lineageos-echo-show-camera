@@ -475,6 +475,20 @@ ls -la out/target/product/$CAMERA_DEVICE/lineage-18.1-*.zip  # the ROM, for TWRP
 ls -la out/target/product/$CAMERA_DEVICE/boot.img            # the patched kernel
 ```
 
+Before flashing, confirm the ROM actually contains the camera work:
+
+```sh
+cd ~/lineageos-echo-show-camera
+scripts/verify-build.sh ~/lineage-18.1
+```
+
+**A patched tree and a ROM built from it are not the same thing.** If you
+applied step 4 or step 6 after a build, the zip predates them and every
+source-side check still passes while the flashed device has no camera
+blobs, no feature file and MediaTek's unserved provider. This catches that
+in a second instead of after a flash and a boot. It needs no re-sync and no
+kernel rebuild - just `mka bacon` again.
+
 **Build `userdebug`, not `user`.** This work is verified on a userdebug
 build, where SELinux is permissive and no policy work is required. On an
 enforcing build the camera will fail on denials that are not diagnosed
@@ -579,6 +593,13 @@ adb -s <serial> reboot
 
 Each script prints what it changed and refuses to proceed past an
 unexpected state; 9.2 and 9.3 keep a `.orig` backup on the device.
+
+> **Reinstalling the ROM zip undoes this step.** It replaces `/system`,
+> which removes the shim and the bring-up rc and restores the `disabled`
+> line patch 0013 puts in `cameraserver.rc`. The camera then fails with no
+> crash and no denial, because `cameraserver` simply never starts. Re-run
+> 9.1 and reboot after any ROM flash. `scripts/camera-preflight.sh` reports
+> exactly this state.
 
 > **9.2 and 9.3 are corrections for `cronos` specifically, and will make
 > the picture worse anywhere else.** Both exist because cronos runs an
