@@ -64,9 +64,9 @@ selects its mirror setting on `CONFIG_CAMERA_MULTIMODAL`, which is
 `default n` and set by no Echo Show defconfig, so the flip Amazon intended
 for these devices is never compiled in and the sensor reads out inverted.
 `ro.camera.sensor_orientation` cannot correct it. Patch 0014 makes the
-vertical flip unconditional, and is confirmed working on `crown`. It
-changes the driver `checkers` shares, so that device is still unverified;
-see [docs/INSTALL.md](docs/INSTALL.md) step 3.
+vertical flip unconditional, and is photo-confirmed on both `crown` and
+`checkers`: upright picture, correct color, no calibration needed; see
+[docs/INSTALL.md](docs/INSTALL.md) step 3.
 
 ## Prerequisites
 
