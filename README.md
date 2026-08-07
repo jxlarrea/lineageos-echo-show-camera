@@ -51,7 +51,6 @@ fixed here, layer by layer.
 | Echo Show 5 (2nd Generation) | `cronos` | OV02B10 | working, verified end to end |
 | Echo Show 8 | `crown` | OV9734 | working, community verified - apply `patches/0014` for the sensor flip |
 | Echo Show 5 | `checkers` | OV9734 | working, community verified - needs the pinned `libdpframework` build the install scripts now select |
-| Echo Spot | `rook` | GC0312 | untested; different sensor again |
 
 Everything below is written for `cronos`. On the OV9734 devices apply only
 the kernel struct patch (0001) and the sensor flip (0014) - their sensor
