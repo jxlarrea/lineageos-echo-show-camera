@@ -49,11 +49,13 @@ export CAMERA_DEVICE=cronos        # or crown, or checkers
 
 Like `MKE2FS_CONFIG` in step 7, this lives in your shell. **Re-export it in
 every new terminal**, or the commands will silently act on the wrong device.
-This guide was verified end to end on `cronos`; `crown` is confirmed working
-by a community report.
+This guide was verified end to end on `cronos`; `crown` and `checkers` are
+confirmed working by community reports (the full `checkers` bring-up is
+issue #2, which found most of the device differences below).
 
-Where a step applies to only one sensor, it says so explicitly - steps 3.2,
-3.3, 9.2 and 9.3 are the ones that differ.
+Where a step applies to only one sensor, it says so explicitly. The
+cronos-only parts are 3.2, 3.3, 9.2, 9.3 and step 11; the OV9734-only part
+is the sensor flip in 3.4.
 
 ### Host dependencies
 
@@ -218,8 +220,14 @@ cd external/chromium-webview/prebuilt/arm && git lfs install --local && git lfs 
 
 ## Step 3: prepare the kernel
 
-Three things go into the kernel, in this exact order. Run each command
-separately and read its output.
+Which parts you run depends on your device, and this tripped the first
+`checkers` user, so plainly:
+
+- **cronos**: 3.1, then 3.2, then 3.3. Skip 3.4.
+- **crown / checkers**: 3.1, then 3.4. Skip 3.2 and 3.3 - your sensor
+  driver is already in the tree and selected.
+
+Run each command separately and read its output.
 
 ```sh
 cd ~/lineage-18.1/kernel/amazon/mt8163-4.9
@@ -228,21 +236,24 @@ cd ~/lineage-18.1/kernel/amazon/mt8163-4.9
 #      without it cameraserver crash-loops on the first ioctl)
 patch -p1 < ~/lineageos-echo-show-camera/patches/0001-imgsensor-use-the-Amazon-struct-layouts-on-all-echo-show.patch
 
-# 3.2  The OV02B10 sensor driver itself (cronos only). This is a complete
+# 3.2  cronos ONLY - the OV02B10 sensor driver itself. This is a complete
 #      driver directory, shipped as a tarball rather than a patch:
 tar xzf ~/lineageos-echo-show-camera/patches/ov02b10_mipi_raw-driver.tar.gz \
     -C drivers/misc/mediatek/imgsensor/src/mt8163/
 
-# 3.3  Wire the driver into the build: sensor IDs, sensor list entry, and
-#      the defconfig (cronos only)
+# 3.3  cronos ONLY - wire the driver into the build: sensor IDs, sensor
+#      list entry, and the defconfig
 patch -p1 < ~/lineageos-echo-show-camera/patches/0004-imgsensor-ov02b10-driver-support.patch
+
+# 3.4  crown/checkers ONLY - the OV9734 vertical flip (details below)
+patch -p1 < ~/lineageos-echo-show-camera/patches/0014-*.patch
 ```
 
 Each `patch` command lists the files it modified. If you see `FAILED` or a
 `.rej` file is created, you are in the wrong directory or the wrong tree
 state - stop and sort that out before building.
 
-Verify:
+Verify, on cronos:
 
 ```sh
 grep CONFIG_CUSTOM_KERNEL_IMGSENSOR arch/arm64/configs/cronos_defconfig
@@ -250,6 +261,14 @@ grep CONFIG_CUSTOM_KERNEL_IMGSENSOR arch/arm64/configs/cronos_defconfig
 
 ls drivers/misc/mediatek/imgsensor/src/mt8163/ov02b10_mipi_raw/
 # Makefile  ov02b10mipiraw_Sensor.c  ov02b10mipiraw_Sensor.h
+```
+
+on crown/checkers:
+
+```sh
+grep -B1 -A1 'define ov9734_MIRROR_V' \
+    drivers/misc/mediatek/imgsensor/src/mt8163/ov9734_mipi_raw/ov9734mipiraw_Sensor.h
+# the define present, with no #if around it
 ```
 
 Things NOT to do in this step, because each looks plausible:
@@ -265,11 +284,8 @@ Things NOT to do in this step, because each looks plausible:
   nothing.
 - 0003 is driver bring-up debug logging; skip it for a normal build.
 
-For `checkers`/`crown` (OV9734 devices): apply only 0001 and skip 3.2 and
-3.3 entirely; their sensor driver is already in the tree and selected.
-
-**Those devices come out upside down, and the fix is in the driver, not
-the orientation property.** The driver picks its mirror setting like this,
+**Why 3.4 exists: OV9734 devices come out upside down, and the fix is in
+the driver, not the orientation property.** The driver picks its mirror setting like this,
 in `ov9734mipiraw_Sensor.h`:
 
 ```c
@@ -300,20 +316,14 @@ phase moved: that driver flips both axes and has a live
 read, and Amazon's own multimodal configuration pairs `MIRROR_V` with
 `RAW_B`. Declaring `RAW_R` here swaps red and blue.
 
-Apply it from the kernel tree alongside 0001:
-
-```sh
-cd ~/lineage-18.1/kernel/amazon/mt8163-4.9
-patch -p1 < ~/lineageos-echo-show-camera/patches/0014-*.patch
-```
-
 Leave `ro.camera.sensor_orientation` at 0 with this applied: the frames
 arrive upright from the sensor, so nothing should rotate them.
 
-Confirmed on `crown` (Echo Show 8). Not yet confirmed on `checkers`, which
-shares this driver - if that device is mounted the other way, this will
-invert a picture that was already correct, and the selection will need to
-become conditional per device. Reports welcome.
+Orientation confirmed correct on `crown` (Echo Show 8). The working
+`checkers` install has this patch applied and produces a picture, but
+nobody has explicitly confirmed which way up it is - if yours comes out
+inverted, that means the two devices are mounted differently and the
+selection needs to become per-device. Report it either way.
 
 ## Step 4: apply the ROM patches
 
@@ -348,6 +358,13 @@ on any distribution shipping a recent e2fsprogs (see step 7).
 manifest, the provider packages, the front-camera feature file, the HAL1
 dynamic native handle flag, and the sensor orientation override.
 [patches/README.md](../patches/README.md) explains each change.
+
+Two of its hunks (the native-handle flag and the orientation override)
+land in `device/amazon/cronos/` specifically. The patch still applies
+cleanly on any device because the sync brings every device tree, but on
+crown/checkers those two changes never reach your build. That is fine:
+both devices are confirmed working without them, and the orientation is
+set at runtime by `camera-bringup.rc` in step 9 anyway.
 
 ## Step 5: install the compatibility shim into the tree
 
@@ -544,7 +561,11 @@ scripts/flash-boot.sh <serial> ~/lineage-18.1
 
 The script backs up the current boot partition to `backups/`, rebuilds the
 amonet layout (exploit header, relocated boot header, payload at 0x800),
-flashes, and verifies byte for byte. Never `dd` a plain `boot.img` to the
+confirms by hash that the image reached the device intact, flashes, and
+verifies byte for byte. If your build host is a VM with USB passed
+through, large pushes can drop data; the script detects that, retries in
+1 MB chunks (you will see dots), and refuses to flash anything that did
+not arrive bit-perfect. Never `dd` a plain `boot.img` to the
 boot partition on these devices: amonet steals the first two blocks, and a
 plain image produces a hang at the vendor logo that is indistinguishable
 from a bad kernel. If you want to convince yourself first:
@@ -625,7 +646,11 @@ If you would rather not reflash the whole ROM while iterating, or you
 changed something in the vendor tree after building,
 `scripts/install-camera.sh <serial> ~/lineage-18.1` pushes the blobs, the
 provider libraries, the shim and the vintf manifest straight to the device
-from the build tree. It checks that the build artifacts exist first.
+from the build tree. It requires working `adb root` and refuses to run
+without it: on the first `checkers` install the pushes went through a
+non-root adb, nothing landed, and the only symptom was zero cameras with
+an empty log. It now also hash-verifies key files on the device after
+pushing, so a half-landed install fails loudly instead.
 
 ## Step 10: verify
 
@@ -640,19 +665,23 @@ adb -s <serial> shell 'pm list features | grep camera'
 adb -s <serial> shell 'dumpsys media.camera | grep Orientation'
 # Orientation: 0
 
-adb -s <serial> shell 'logcat -d | grep -cE "startStream fail|deque DISPO fail"'
-# 0
+adb -s <serial> shell 'logcat -d | grep -cE "startStream fail|deque DISPO fail|submit command block failed"'
+# 0    (the last pattern is the checkers legacy-libdpframework signature)
 ```
 
 Then the functional test:
 
 1. Open the camera app. You should see a live, right-side-up preview with
    believable colors within about two seconds.
-2. Take a photo. It should complete in about one second and produce a
-   1600x1200 JPEG (check with `adb shell ls -la /sdcard/DCIM/Camera/`).
+2. Take a photo. It should complete in about one second and produce a JPEG
+   at the sensor's full resolution - 1600x1200 on cronos (OV02B10),
+   1280x720 on crown/checkers (OV9734). Check with
+   `adb shell ls -la /sdcard/DCIM/Camera/`.
 3. Cover the camera or darken the room and take another photo. It should be
-   essentially black. If it is a grey or cyan haze instead, the black-level
-   patch (step 9.3) did not apply.
+   essentially black. On cronos, a grey or cyan haze here means the
+   black-level patch (step 9.3) did not apply. On OV9734 devices the stock
+   black level is already correct, so a haze would be a new finding worth
+   reporting.
 
 If any of that is wrong, check the install itself before reading logs:
 
@@ -707,11 +736,14 @@ values across factory resets, edit the defaults in
 ## Troubleshooting
 
 **Camera app says no camera / `Number of camera devices: 0`.**
-The provider is not loading. Check `adb logcat -d | grep -i provider` for
-`HIDL_FETCH_ICameraProvider` errors; a "library not found" here usually
+Run `scripts/camera-preflight.sh <serial>` before reading any logs - it
+checks each thing the camera depends on and names the missing one. The two
+causes seen in the field: `cameraserver` still disabled because the ROM
+zip was reinstalled after step 9 (re-run 9.1 and reboot), and an install
+pushed without `adb root` so nothing actually landed. If the preflight
+passes, then check `adb logcat -d | grep -i provider` for
+`HIDL_FETCH_ICameraProvider` errors; a "library not found" there usually
 means a blob or one of the `camera.device@*-impl` variants is missing.
-Confirm the manifest change (0011) made it into the build:
-`adb shell cat /vendor/etc/vintf/manifest.xml | grep -A6 camera`.
 
 **cameraserver crash-loops with `ImgSensorDrv` in the backtrace.**
 The kernel struct patch (0001) is not in the running kernel, or the boot
@@ -719,21 +751,30 @@ image was not actually flashed. `adb shell uname -a` and compare the build
 timestamp to your build.
 
 **Preview is uniform green.**
-No frames are being delivered. Usually the cmdq event shim is not loaded:
-check `adb shell 'getprop | grep cmdq'` and that
-`/system/etc/init/cameraserver.rc` contains the `LD_PRELOAD` line
-(`install-cmdq-event-shim.sh` adds it).
+No frames are being delivered - uniform green is zero-filled YUV, the
+preview surface's initial state, and it is never a colour problem.
+`scripts/camera-test.sh` prints which pipeline stage is failing. The known
+causes, in the order they were found: the cmdq event shim is not loaded
+(check `/system/etc/init/cameraserver.rc` has the `LD_PRELOAD` line), or
+`libdpframework_cam.so` is the legacy-interface build from an older
+version of the install scripts - the checkers dump ships a build whose
+cmdq ioctls this kernel removed, and the log shows
+`submit command block failed(-1)`. For the latter: `git pull`, re-run
+step 6.4 (it detects and replaces the bad build), then
+`scripts/install-camera.sh` and reboot.
 
 **Capture times out (`ISP_WAIT_IRQ fail`, `Hit timeout for jpeg callback`).**
 The sensor driver timing patches (0008, 0010) are missing from the kernel.
 
-**Image is magenta everywhere.**
+**Image is magenta everywhere** (cronos only).
 `patch-awb-d65.sh` was not applied, or was applied with the wrong values
-(the default is unity, which is correct).
+(the default is unity, which is correct). On crown/checkers this script
+should never have been run; `--restore` puts the library back.
 
-**Blacks are grey, everything hazy.**
+**Blacks are grey, everything hazy** (cronos only).
 `patch-obc-pedestal.sh` was not applied. Verify with the dark-room test in
-step 10.
+step 10. On crown/checkers the stock black level is correct and this
+script does not apply.
 
 **Device completely unresponsive (no adb, no ping).**
 You most likely killed cameraserver while the ISP was streaming; see the

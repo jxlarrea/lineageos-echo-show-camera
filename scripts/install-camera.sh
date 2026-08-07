@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# Install the camera stack onto a running cronos device for testing.
+# Install the camera stack onto a running device, straight from the tree.
 #
 # /vendor is a symlink to /system/vendor on this device, so this writes to the
 # system partition. There is no A/B slot and no stock backup, so:
@@ -41,7 +41,20 @@ done
 echo "== remounting system read-write =="
 adb root >/dev/null 2>&1 || true
 adb wait-for-device
+# Without root the pushes fail in ways that are easy to miss, and a camera
+# stack that half-landed enumerates zero cameras with nothing in the log
+# saying why (seen on issue #2). Refuse to continue rather than find out
+# at the end.
+if [[ "$(adb shell id -u | tr -d '\r')" != "0" ]]; then
+    echo "adb is not running as root on $DEVICE." >&2
+    echo "Run: adb -s $DEVICE root   (userdebug builds only), then re-run." >&2
+    exit 1
+fi
 adb remount >/dev/null 2>&1 || adb shell 'mount -o rw,remount /system'
+if ! adb shell 'touch /vendor/.rwtest && rm /vendor/.rwtest' >/dev/null 2>&1; then
+    echo "/vendor is still read-only after remount, refusing to continue" >&2
+    exit 1
+fi
 
 echo "== backing up the vintf manifest =="
 adb pull /vendor/etc/vintf/manifest.xml "$BACKUP/manifest.xml" >/dev/null
@@ -84,7 +97,31 @@ echo "== fixing permissions =="
 adb shell 'chmod 644 /vendor/lib/libcam*.so /vendor/lib/hw/*.so /vendor/lib/libcamera_shim.so /vendor/etc/vintf/manifest.xml 2>/dev/null'
 adb shell 'chown root:root /vendor/lib/libcam*.so /vendor/lib/hw/*.so 2>/dev/null'
 
+echo "== verifying what actually landed =="
+# Compare device-side hashes against the exact files pushed. This is what
+# turns "the push silently did nothing" into a loud failure.
+verify=0
+vcheck() {
+    local host="$1" dev="$2" want got
+    want="$(sha256sum "$host" | cut -d' ' -f1)"
+    got="$(adb shell "sha256sum $dev 2>/dev/null" | cut -d' ' -f1 | tr -d '\r')"
+    if [[ "$want" == "$got" ]]; then
+        echo "   ok    $dev"
+    else
+        echo "   FAIL  $dev did not land intact" >&2
+        verify=1
+    fi
+}
+vcheck "$OUT/system/vendor/etc/vintf/manifest.xml" /vendor/etc/vintf/manifest.xml
+vcheck "$OUT/system/vendor/lib/libcamera_shim.so" /vendor/lib/libcamera_shim.so
+vcheck "$BLOBS/hw/camera.mt8163.so" /vendor/lib/hw/camera.mt8163.so
+vcheck "$BLOBS/libdpframework_cam.so" /vendor/lib/libdpframework_cam.so
+if (( verify )); then
+    echo "the install did NOT complete; fix the transfer before rebooting" >&2
+    exit 1
+fi
+
 echo
-echo "installed. run scripts/camera-test.sh $DEVICE for a cold-boot test."
+echo "installed and verified. run scripts/camera-test.sh $DEVICE for a cold-boot test."
 echo "to roll back the manifest:"
 echo "  adb -s $DEVICE shell 'mount -o rw,remount /system; cp /vendor/etc/vintf/manifest.xml.orig /vendor/etc/vintf/manifest.xml'"
