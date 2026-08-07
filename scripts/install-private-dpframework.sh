@@ -28,14 +28,50 @@ TREE="${1:-${LINEAGE_TREE:-$HOME/lineage-18.1}}"
 . "$(dirname "$0")/device-config.sh"
 PROP="$(device_vendor_dir "$TREE")/vendor/lib"
 PATCHELF="$TREE/prebuilts/extract-tools/linux-x86/bin/patchelf-0_9"
-# The cronos and crown dumps ship a byte identical libdpframework.so;
-# checkers ships a different build of the same size. The patcher below
-# locates its targets by pattern for that reason, so it does not care which.
-RAW="$DUMP_RAW"
+
+# This one library is deliberately NOT fetched from the device's own dump.
+#
+# Unlike the camera blobs, whose tuning is per sensor, libdpframework talks
+# to the kernel's cmdq/MDP driver, so the build that matters is the one whose
+# ioctl interface this kernel still serves. The cronos and crown dumps ship a
+# byte identical build that submits work via MDP_IOCTL_ASYNC_EXEC (nr 20),
+# which the lineage-18.1 kernel implements and the cmdq event shim remaps.
+# The checkers dump ships an older build that submits via the legacy
+# CMDQ_IOCTL_EXEC_COMMAND (nr 3, plus nr 7), which this kernel removed
+# entirely: the ioctl hits the driver's unrecognized-command path, returns
+# ENOIOCTLCMD, and the camera dies with 'submit command block failed(-1)',
+# 'start the stream failed(-26)' and an endless 'dequeueDstBuffer for dispo
+# fail(-1)' - a green preview and an EPIPE from the HAL. Found on a real
+# checkers on issue #2, confirmed by scanning both binaries for their 'x'
+# magic ioctl constants and reading this kernel's cmdq_driver.c.
+#
+# So every device gets the cronos/crown build. The MDP hardware is the same
+# mt8163 block on all of them and the kernel is the same tree.
+DPF_BRANCH="cronos-user-6.0-NS6573-6567-amz-p,release-keys"
+RAW="https://raw.githubusercontent.com/el-vertedero/amazon_cronos_dump/$DPF_BRANCH"
 
 PRIVATE=libdpframework_cam.so
 
 [[ -x "$PATCHELF" ]] || { echo "patchelf missing at $PATCHELF" >&2; exit 1; }
+
+# If a copy is already in the tree, make sure it is a build this kernel can
+# talk to: the MDP_IOCTL_ASYNC_EXEC constant 0x40887814 is materialized as a
+# Thumb movw #0x7814 / movt #0x4088 pair. A copy without it is the legacy
+# interface build (installed by an older version of this script, which
+# followed CAMERA_DEVICE for this file too) and gets replaced.
+if [[ -f "$PROP/$PRIVATE" ]]; then
+    if ! python3 - "$PROP/$PRIVATE" <<'PYCHECK'
+import re, sys
+d = open(sys.argv[1], 'rb').read()
+# 47 f6 14 0X c4 f2 88 0X with the same destination register X
+pat = re.compile(b"\x47\xf6\x14([\x00-\x0f])\xc4\xf2\x88" + rb"\1")
+sys.exit(0 if pat.search(d) else 1)
+PYCHECK
+    then
+        echo "== existing $PRIVATE speaks the legacy cmdq interface, replacing =="
+        rm -f "$PROP/$PRIVATE"
+    fi
+fi
 
 # Blobs that link libdpframework. Derived by scanning DT_NEEDED.
 CONSUMERS=(

@@ -609,6 +609,35 @@ after:   EXEC ... count=167 events(hw): 28 33 ... remapped=6
 
 The fix now ships as `shims/libcmdqevent/libcmdqevent_shim.so`; see below.
 
+### checkers: same symptoms, different cause - its libdpframework speaks an ioctl interface this kernel removed
+
+The first checkers bring-up (issue #2) reproduced the exact pre-fix symptom
+set - `submit command block failed(-1)`, `start the stream failed(-26)`,
+endless `dequeueDstBuffer for dispo fail(-1)`, green preview, EPIPE after
+6.5s - with the shim loaded and working. The kernel side was clean: sensor
+identified, powered and streaming, zero ISP errors, zero TG1 timeouts.
+
+Scanning both dumps' libdpframework binaries for their `'x'`-magic ioctl
+constants (Thumb `movw`/`movt` pairs) explains it:
+
+| build | submits via | this kernel |
+| --- | --- | --- |
+| cronos / crown (byte identical) | `MDP_IOCTL_ASYNC_EXEC` (nr 20) | served, and the event shim remaps it |
+| checkers | `CMDQ_IOCTL_EXEC_COMMAND` (nr 3) + nr 7 | removed; `cmdq_driver.c` returns `-ENOIOCTLCMD` |
+
+So on checkers the submit ioctl itself fails with -1 (where cronos's
+failure was a swallowed status and a zero job id), the library logs
+`submit command block failed(-1), JobID: 0`, and no MDP work is ever
+scheduled. The camera blobs were scanned too: libdpframework is the only
+library in the checkers set that talks to `/dev/mtk_cmdq`.
+
+The fix is to pin `libdpframework_cam.so` to the cronos/crown build on
+every device - the library faces the SoC's MDP block and the kernel, not
+the sensor, and all three devices share both. `install-private-dpframework.sh`
+now fetches it from the cronos dump regardless of `CAMERA_DEVICE` and
+replaces an already-installed legacy-interface copy, detected by probing
+for the nr-20 constant.
+
 ### The camera now works from a cold boot with no manual steps
 
 `scripts/install-cmdq-event-shim.sh` installs the shim and

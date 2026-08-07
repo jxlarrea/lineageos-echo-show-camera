@@ -394,7 +394,11 @@ scripts/install-blobs-to-tree.sh ~/lineage-18.1
 
 # 6.4  Build the private display framework: fetch the stock API 25
 #      libdpframework.so, give it a private soname, apply three binary
-#      patches, and repoint the ten blobs that link it
+#      patches, and repoint the ten blobs that link it. Unlike the camera
+#      blobs this library is fetched from the cronos dump on EVERY device:
+#      it talks to the kernel's cmdq driver, and the checkers dump's build
+#      speaks a legacy ioctl interface this kernel removed (found the hard
+#      way on a real checkers; the script explains in detail)
 scripts/install-private-dpframework.sh ~/lineage-18.1
 
 # 6.5  Add the compatibility shim to the blobs' DT_NEEDED, so the linker
