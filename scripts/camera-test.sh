@@ -65,6 +65,39 @@ echo "--- provider / HAL errors ---"
 grep -iE 'CameraProvider|CamDev|camera.*(fail|error|denied)|libcam' \
     "$OUTDIR/logcat.txt" | head -20 || echo "(nothing)"
 echo
+echo "--- pipeline: where it stops ---"
+# A uniform green preview means no frames reached the display client at all:
+# zero-filled YUV420 is RGB(0,135,0). It is not a colour bug and Bayer order
+# cannot cause it - a wrong Bayer pattern corrupts content, it cannot remove
+# it. These counts say which stage is actually failing. See docs/findings.md.
+# grep -c already prints 0 when there is no match, and exits 1 while doing it.
+# A "|| echo 0" here appends a second 0 and every arithmetic test below then
+# fails to parse.
+c() { local n; n="$(grep -acE "$1" "$OUTDIR/logcat.txt" 2>/dev/null)" || true; echo "${n:-0}"; }
+sensor_ok=$(c 'pSensorDrv->open succeed')
+tg1_fail=$(c 'ISP_WAIT_IRQ fail|irq_TG1_DONE.*fail|waitIrq.*fail')
+p1_fail=$(c 'dequePass1 fail|waitBufReady fail|ERROR:dequeueBuf')
+mdp_fail=$(c 'dequeueDstBuffer|abortPoll|MdpMgrImp')
+deq=$(c 'dequeueBuffer|enqueueBuffer')
+hidl=$(c 'getHidlStatus: unknown HAL status')
+printf '  sensor opened over i2c        %s\n' "$sensor_ok"
+printf '  ISP irq / TG1 timeouts        %s\n' "$tg1_fail"
+printf '  pass-1 dequeue failures       %s\n' "$p1_fail"
+printf '  display-framework failures    %s\n' "$mdp_fail"
+printf '  buffer dequeue/enqueue calls  %s\n' "$deq"
+printf '  unknown HAL status returns    %s\n' "$hidl"
+if (( sensor_ok > 0 && tg1_fail > 0 )); then
+    echo "  => the sensor answers on i2c but is not streaming pixels: no frame-end"
+    echo "     interrupt arrives. Look at the sensor driver's register tables."
+elif (( mdp_fail > 0 && deq == 0 )); then
+    echo "  => the sensor streams but the display framework never hands over a"
+    echo "     buffer. Check scripts/install-private-dpframework.sh applied all"
+    echo "     three binary patches, and that the shim is loaded."
+elif (( deq == 0 )); then
+    echo "  => no buffers were ever dequeued, so nothing could reach the screen."
+fi
+
+echo
 echo "--- crashes ---"
 grep -iE 'signal [0-9]+|SIGSEGV|SIGABRT|Fatal signal' \
     "$OUTDIR/logcat.txt" | head -10 || echo "(none)"
