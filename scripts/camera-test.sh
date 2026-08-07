@@ -104,3 +104,12 @@ grep -iE 'signal [0-9]+|SIGSEGV|SIGABRT|Fatal signal' \
 echo
 echo "--- sepolicy denials ---"
 grep -i 'avc: *denied' "$OUTDIR/logcat.txt" | head -20 || echo "(none)"
+
+# Bundle everything into one file. Reports get attached to issues by hand,
+# and three loose .txt files invite exactly the mixup that happened on
+# issue #2, where dmesg was uploaded twice and the one file that shows
+# userspace - logcat - never arrived.
+tar czf "$OUTDIR.tar.gz" -C "$(dirname "$OUTDIR")" "$(basename "$OUTDIR")"
+echo
+echo "all of the above bundled into: $OUTDIR.tar.gz"
+echo "when reporting a problem, attach that one file rather than the pieces"
