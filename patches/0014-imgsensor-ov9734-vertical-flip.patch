@@ -29,8 +29,9 @@ assigned once and never read again - unlike the OV02B10 in patches/0007,
 which has a live set_mirror_flip(). The Bayer phase the HAL is told about
 must therefore stay as it is; declaring RAW_R here swaps red and blue.
 
-Verified on crown (Echo Show 8) by a community report: upright picture
-with correct colour, ro.camera.sensor_orientation left at 0.
+Verified on crown (Echo Show 8) and checkers (Echo Show 5 1st gen), each
+by a community report with photos: upright picture with correct colour,
+ro.camera.sensor_orientation left at 0.
 
 This replaces an earlier version of this patch that selected
 ov9734_MIRROR_HV and changed sensor_output_dataformat to RAW_R. That was
@@ -41,8 +42,8 @@ really do move. It looked upright because a horizontal mirror is easy to
 miss on a front-facing camera; the red/blue swap it introduced is a large
 part of the colour trouble reported on crown.
 
-Applies to checkers as well, which shares this driver and is also a
-multimodal device, but remains unverified there.
+Both devices that share this driver are therefore confirmed; they mount
+the sensor the same way.
 
 Apply from the kernel tree (kernel/amazon/mt8163-4.9):
     patch -p1 < 0014-imgsensor-ov9734-vertical-flip.patch

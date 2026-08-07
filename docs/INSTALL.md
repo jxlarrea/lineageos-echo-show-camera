@@ -319,11 +319,9 @@ read, and Amazon's own multimodal configuration pairs `MIRROR_V` with
 Leave `ro.camera.sensor_orientation` at 0 with this applied: the frames
 arrive upright from the sensor, so nothing should rotate them.
 
-Orientation confirmed correct on `crown` (Echo Show 8). The working
-`checkers` install has this patch applied and produces a picture, but
-nobody has explicitly confirmed which way up it is - if yours comes out
-inverted, that means the two devices are mounted differently and the
-selection needs to become per-device. Report it either way.
+Orientation confirmed correct on both OV9734 devices: `crown` (Echo
+Show 8) and `checkers` (Echo Show 5 1st gen), each by photo from a
+community bring-up. The two devices mount the sensor the same way.
 
 ## Step 4: apply the ROM patches
 
@@ -637,10 +635,11 @@ unexpected state; 9.2 and 9.3 keep a `.orig` backup on the device.
 > `scripts/patch-awb-d65.sh <serial> --restore`, which puts back the
 > untouched library the two of them share.
 >
-> This is now a community observation rather than a prediction: a `crown`
-> user ran neither script and reports correct color under artificial
-> light, with daylight still to be checked. If you are on an OV9734
-> device, expect to need nothing here.
+> This is now confirmed on both OV9734 devices rather than a prediction:
+> the `crown` and `checkers` bring-ups each ran neither script and report
+> correct color (photo-verified on `checkers`; daylight on `crown` still
+> unchecked). If you are on an OV9734 device, expect to need nothing
+> here.
 
 If you would rather not reflash the whole ROM while iterating, or you
 changed something in the vendor tree after building,
