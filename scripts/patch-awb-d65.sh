@@ -45,9 +45,8 @@ LIB=/system/vendor/lib/libcameracustom.so
 WORK="$(mktemp -d)"
 trap 'rm -rf "$WORK"' EXIT
 
-adb -s "$DEVICE" root >/dev/null 2>&1 || true
-sleep 3
-adb -s "$DEVICE" wait-for-device
+. "$(dirname "$0")/adb-lib.sh"
+adb_wait_root "$DEVICE"
 adb -s "$DEVICE" remount >/dev/null 2>&1 || adb -s "$DEVICE" shell 'mount -o rw,remount /system'
 
 if [[ "$MODE" == "--restore" ]]; then

@@ -39,17 +39,12 @@ for f in system/vendor/lib/libcamera_shim.so \
 done
 
 echo "== remounting system read-write =="
-adb root >/dev/null 2>&1 || true
-adb wait-for-device
 # Without root the pushes fail in ways that are easy to miss, and a camera
 # stack that half-landed enumerates zero cameras with nothing in the log
-# saying why (seen on issue #2). Refuse to continue rather than find out
-# at the end.
-if [[ "$(adb shell id -u | tr -d '\r')" != "0" ]]; then
-    echo "adb is not running as root on $DEVICE." >&2
-    echo "Run: adb -s $DEVICE root   (userdebug builds only), then re-run." >&2
-    exit 1
-fi
+# saying why (seen on issue #2). adb_wait_root polls through the adbd
+# restart (and a VM's USB re-attach) and refuses to continue without root.
+. "$(dirname "$0")/adb-lib.sh"
+adb_wait_root "$DEVICE"
 adb remount >/dev/null 2>&1 || adb shell 'mount -o rw,remount /system'
 if ! adb shell 'touch /vendor/.rwtest && rm /vendor/.rwtest' >/dev/null 2>&1; then
     echo "/vendor is still read-only after remount, refusing to continue" >&2

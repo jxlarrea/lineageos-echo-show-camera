@@ -563,7 +563,15 @@ confirms by hash that the image reached the device intact, flashes, and
 verifies byte for byte. If your build host is a VM with USB passed
 through, large pushes can drop data; the script detects that, retries in
 1 MB chunks (you will see dots), and refuses to flash anything that did
-not arrive bit-perfect. Never `dd` a plain `boot.img` to the
+not arrive bit-perfect.
+
+`adb root` is another VM hazard the scripts absorb for you: it restarts
+adbd, which drops the USB link, and a VM host takes seconds to re-attach
+the device to the guest - long enough that commands issued right after it
+fail with `device not found`. Every script that needs root now polls
+through that window instead of racing it, so if you still see
+`device not found`, the link is genuinely gone (check `adb devices`)
+rather than momentarily blinking. Never `dd` a plain `boot.img` to the
 boot partition on these devices: amonet steals the first two blocks, and a
 plain image produces a hang at the vendor logo that is indistinguishable
 from a bad kernel. If you want to convince yourself first:

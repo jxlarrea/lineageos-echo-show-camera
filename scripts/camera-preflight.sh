@@ -20,8 +20,10 @@ if [[ -z "$DEVICE" ]]; then
 fi
 
 adb() { command adb -s "$DEVICE" "$@"; }
-adb root >/dev/null 2>&1 || true
-adb wait-for-device
+. "$(dirname "$0")/adb-lib.sh"
+# Read-only checks mostly work without root, so a failed wait degrades to
+# a warning rather than aborting the report.
+adb_wait_root "$DEVICE" || echo "  warning: no root; some checks may misreport" >&2
 
 pass=0 fail=0
 ok()   { printf '  \033[32mok\033[0m    %s\n' "$1"; pass=$((pass + 1)); }

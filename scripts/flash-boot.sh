@@ -110,8 +110,8 @@ if [[ "$state" == "recovery" || "$state" == "sideload" ]]; then
     exit 1
 fi
 
-adb root >/dev/null 2>&1 || true
-adb wait-for-device
+. "$(dirname "$0")/adb-lib.sh"
+adb_wait_root "$DEVICE"
 
 echo "== backing up the current boot partition =="
 mkdir -p backups/partitions

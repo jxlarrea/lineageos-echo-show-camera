@@ -24,9 +24,8 @@ RC="$HERE/shims/libcmdqevent/camera-bringup.rc"
 
 [[ -f "$SHIM" ]] || { echo "build it first: shims/libcmdqevent/build.sh $DEVICE" >&2; exit 1; }
 
-adb -s "$DEVICE" root >/dev/null 2>&1 || true
-sleep 3
-adb -s "$DEVICE" wait-for-device
+. "$(dirname "$0")/adb-lib.sh"
+adb_wait_root "$DEVICE"
 adb -s "$DEVICE" remount >/dev/null 2>&1 || adb -s "$DEVICE" shell 'mount -o rw,remount /system'
 
 adb -s "$DEVICE" push "$SHIM" /system/lib/libcmdqevent_shim.so >/dev/null
