@@ -21,6 +21,22 @@ OUT="$(device_out_dir "$TREE")"
                      echo "check CAMERA_DEVICE (currently $CAMERA_DEVICE) and that the build ran" >&2
                      exit 2; }
 
+# These devices are pre-Treble: /vendor is a symlink to /system/vendor, so the
+# build stages everything under system/vendor and $OUT/vendor does not exist at
+# all. This script originally checked $OUT/vendor and therefore reported every
+# blob missing on a perfectly good build - it was written against invented
+# fixtures rather than a real tree, so its pass case was unreachable. Resolve
+# the staged vendor root instead of assuming one.
+if [[ -d "$OUT/system/vendor" ]]; then
+    VOUT="$OUT/system/vendor"
+elif [[ -d "$OUT/vendor" ]]; then
+    VOUT="$OUT/vendor"
+else
+    echo "no staged vendor directory under $OUT - did the build finish?" >&2
+    exit 2
+fi
+echo "  vendor staged at: ${VOUT#$OUT/}"
+
 pass=0 fail=0
 ok()  { printf '  \033[32mok\033[0m    %s\n' "$1"; pass=$((pass + 1)); }
 bad() { printf '  \033[31mFAIL\033[0m  %s\n' "$1"; fail=$((fail + 1))
@@ -50,23 +66,23 @@ fi
 
 echo
 echo "== vendor blobs (step 6) =="
-for f in vendor/lib/hw/camera.mt8163.so vendor/lib/libdpframework_cam.so; do
-    [[ -f "$OUT/$f" ]] && ok "$f" || bad "$f is missing" \
+for f in lib/hw/camera.mt8163.so lib/libdpframework_cam.so; do
+    [[ -f "$VOUT/$f" ]] && ok "$f" || bad "$f is missing" \
         "step 6 did not reach the build. Re-run 6.1 through 6.5, then rebuild."
 done
-n=$(find "$OUT/vendor/lib" -maxdepth 1 -name 'libcam*.so' 2>/dev/null | wc -l)
+n=$(find "$VOUT/lib" -maxdepth 1 -name 'libcam*.so' 2>/dev/null | wc -l)
 (( n >= 30 )) && ok "$n libcam*.so blobs staged" || bad "only $n libcam*.so blobs staged (expect 30+)" \
     "setup-makefiles.sh in 6.1 regenerates the vendor makefiles; appending to proprietary-files.txt alone does nothing."
 
 echo
 echo "== source-built shim (patch 0011 PRODUCT_PACKAGES) =="
-[[ -f "$OUT/vendor/lib/libcamera_shim.so" ]] && ok "vendor/lib/libcamera_shim.so" \
-    || bad "vendor/lib/libcamera_shim.so is missing" \
+[[ -f "$VOUT/lib/libcamera_shim.so" ]] && ok "lib/libcamera_shim.so" \
+    || bad "lib/libcamera_shim.so is missing" \
            "patch 0011 adds libcamera_shim to PRODUCT_PACKAGES in mt8163.mk."
 
 echo
 echo "== camera feature (patch 0011, mt8163.mk) =="
-P="$OUT/vendor/etc/permissions"
+P="$VOUT/etc/permissions"
 [[ -f "$P/android.hardware.camera.front.xml" ]] && ok "android.hardware.camera.front.xml staged" \
     || bad "android.hardware.camera.front.xml is missing" "patch 0011 is not in this build"
 [[ -f "$P/android.hardware.camera.xml" ]] && bad "the back-camera android.hardware.camera.xml is still staged" \
@@ -75,14 +91,29 @@ P="$OUT/vendor/etc/permissions"
 
 echo
 echo "== provider declaration (patch 0011, manifest.xml) =="
-M="$OUT/vendor/etc/vintf/manifest.xml"
-if [[ -f "$M" ]] && grep -q 'legacy/0' "$M"; then
-    ok "vintf declares the passthrough legacy provider"
-elif [[ -f "$M" ]] && grep -q 'internal/0' "$M"; then
-    bad "vintf still declares MediaTek's internal/0 provider" "patch 0011 is not in this build"
-else
-    bad "no camera provider in $M"
-fi
+M="$VOUT/etc/vintf/manifest.xml"
+prov="$(python3 - "$M" <<'PY' 2>/dev/null || true
+import re, sys
+try:
+    s = open(sys.argv[1]).read()
+except OSError:
+    sys.exit(0)
+# only the camera *provider* hal; vendor.mediatek...camera.ccap also carries an
+# internal/0 instance and is unrelated
+for m in re.finditer(r'<hal\b(?:(?!</hal>).)*?</hal>', s, re.S):
+    b = m.group(0)
+    if '<name>android.hardware.camera.provider</name>' in b:
+        print('legacy' if 'legacy/0' in b else ('internal' if 'internal/0' in b else 'other'))
+        break
+PY
+)"
+case "$prov" in
+    legacy)   ok "vintf declares the passthrough legacy camera provider" ;;
+    internal) bad "vintf still declares MediaTek's internal/0 camera provider" \
+                  "patch 0011 is not in this build" ;;
+    other)    bad "the camera provider in vintf is neither legacy/0 nor internal/0" ;;
+    *)        bad "no camera provider declared in $M" ;;
+esac
 
 echo
 echo "== cameraserver held back until the shim is installed (patch 0013) =="
