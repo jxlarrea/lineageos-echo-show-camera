@@ -68,9 +68,10 @@ export CAMERA_DEVICE=cronos        # or crown, or checkers
 
 Like `MKE2FS_CONFIG` in step 7, this lives in your shell. **Re-export it in
 every new terminal**, or the commands will silently act on the wrong device.
-This guide was verified end to end on `cronos`; `crown` and `checkers` are
-confirmed working by community reports (the full `checkers` bring-up is
-issue #2, which found most of the device differences below).
+This guide was verified end to end on `cronos` and `crown`, each by
+following it from an empty tree to a working camera. `checkers` is
+confirmed working by a community report (the full bring-up is issue #2,
+which found most of the device differences below).
 
 Where a step applies to only one sensor, it says so explicitly. The
 cronos-only parts are 3.2, 3.3, 9.2, 9.3 and step 11; the OV9734-only part
@@ -715,6 +716,16 @@ Then the functional test:
    black level is already correct, so a haze would be a new finding worth
    reporting.
 
+The saved JPEG is mirrored relative to what the preview showed. That is
+ordinary front-camera behaviour - the preview mirrors so it reads like a
+mirror, the still is written unmirrored - and not a sensor or Bayer
+problem.
+
+On a fresh install the **first** launch of the camera app spends itself on
+the runtime permission prompts rather than streaming, and the log from that
+attempt is not worth reading. `camera-test.sh` grants those permissions
+before it starts for exactly this reason.
+
 If any of that is wrong, check the install itself before reading logs:
 
 ```sh
@@ -797,6 +808,15 @@ step 6.4 (it detects and replaces the bad build), then
 
 **Capture times out (`ISP_WAIT_IRQ fail`, `Hit timeout for jpeg callback`).**
 The sensor driver timing patches (0008, 0010) are missing from the kernel.
+
+**`getHidlStatus: unknown HAL status code -32`.**
+This code means two different things and the timing separates them. If it
+arrives within a few hundred milliseconds of `Opening camera 0`, alongside
+`stopPreview` and `Destroying camera 0`, it is the teardown of an open the
+client aborted - normally the first-launch permission prompt - and it is
+harmless. If it arrives seconds after the open, with `dequeueDstBuffer` or
+`ISP_WAIT_IRQ` failures behind it, the pipeline genuinely stalled; see the
+uniform-green entry above. `camera-test.sh` distinguishes the two.
 
 **Image is magenta everywhere** (cronos only).
 `patch-awb-d65.sh` was not applied, or was applied with the wrong values

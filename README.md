@@ -49,7 +49,7 @@ fixed here, layer by layer.
 | Device | Codename | Sensor | Status |
 | --- | --- | --- | --- |
 | Echo Show 5 (2nd Generation) | `cronos` | OV02B10 | working, verified end to end |
-| Echo Show 8 | `crown` | OV9734 | working, community verified - apply `patches/0014` for the sensor flip |
+| Echo Show 8 | `crown` | OV9734 | working, verified end to end - apply `patches/0014` for the sensor flip |
 | Echo Show 5 | `checkers` | OV9734 | working, community verified - needs the pinned `libdpframework` build the install scripts now select |
 
 Everything below is written for `cronos`. On the OV9734 devices apply only

@@ -44,6 +44,19 @@ adb -s "$DEVICE" logcat > "$OUTDIR/logcat.txt" 2>&1 &
 LOGCAT_PID=$!
 trap 'kill $LOGCAT_PID 2>/dev/null || true' EXIT
 
+# Grant the camera app its runtime permissions first. On a fresh install the
+# very first launch spends its time in the permission dance instead of
+# streaming: the app connects, the HAL opens camera 0, the app tears it down
+# again before a preview starts, and the teardown returns -32. That is a
+# benign artifact of an aborted open, but it lands in the log looking exactly
+# like a pipeline failure and it wastes the one cold-boot attempt this script
+# exists to capture.
+for perm in android.permission.CAMERA android.permission.RECORD_AUDIO \
+            android.permission.READ_EXTERNAL_STORAGE \
+            android.permission.WRITE_EXTERNAL_STORAGE; do
+    adb -s "$DEVICE" shell pm grant com.android.camera2 "$perm" >/dev/null 2>&1 || true
+done
+
 echo "opening camera (first attempt after boot)"
 adb -s "$DEVICE" shell am start -a android.media.action.STILL_IMAGE_CAMERA >/dev/null
 sleep 10
@@ -86,7 +99,15 @@ printf '  pass-1 dequeue failures       %s\n' "$p1_fail"
 printf '  display-framework failures    %s\n' "$mdp_fail"
 printf '  buffer dequeue/enqueue calls  %s\n' "$deq"
 printf '  unknown HAL status returns    %s\n' "$hidl"
-if (( sensor_ok > 0 && tg1_fail > 0 )); then
+# A -32 with no pipeline failures behind it is the aborted-open teardown
+# described above, not a stall. The real thing comes after a multi-second
+# hang and brings dequeue or display-framework failures with it.
+if (( hidl > 0 && tg1_fail == 0 && p1_fail == 0 && mdp_fail == 0 )); then
+    echo "  => the only complaint is a HAL status on teardown, with no pipeline"
+    echo "     failures behind it. That is an open the client aborted (usually"
+    echo "     the first-launch permission prompt), not a stall. Look at the"
+    echo "     preview on the device before treating this as a fault."
+elif (( sensor_ok > 0 && tg1_fail > 0 )); then
     echo "  => the sensor answers on i2c but is not streaming pixels: no frame-end"
     echo "     interrupt arrives. Look at the sensor driver's register tables."
 elif (( mdp_fail > 0 && deq == 0 )); then
