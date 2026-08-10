@@ -19,6 +19,26 @@ RAW="$DUMP_RAW"
 OUT="stock/lib"
 mkdir -p "$OUT"
 
+# stock/lib is a cache keyed by device, and the loop below skips any library
+# already present. Without this stamp, fetching for a second device silently
+# keeps the first device's blobs: the build succeeds, the camera works, and
+# the colour is wrong in a way no calibration can fix - which is the exact
+# failure the per-device fetch exists to prevent. Found while bringing up a
+# crown on a host that still had cronos blobs cached.
+STAMP="$OUT/.device"
+if [[ -f "$STAMP" ]]; then
+    cached="$(cat "$STAMP")"
+    if [[ "$cached" != "$CAMERA_DEVICE" ]]; then
+        echo "stock/lib holds $cached blobs, but CAMERA_DEVICE is $CAMERA_DEVICE."
+        echo "clearing the cache so it is refetched for $CAMERA_DEVICE"
+        rm -f "$OUT"/*.so "$STAMP"
+    fi
+elif compgen -G "$OUT/*.so" >/dev/null; then
+    # Cache predates the stamp; provenance unknown, so it cannot be trusted.
+    echo "stock/lib has blobs from an unknown device, clearing to be safe"
+    rm -f "$OUT"/*.so
+fi
+
 # The camera closure: everything matching libcam*/libmtkcam*/camera.mt8163,
 # plus the transitive MediaTek dependencies those pull in. Listing the
 # dependencies explicitly keeps this reproducible without a resolver.
@@ -62,5 +82,7 @@ if [[ ! -f "$OUT/camera.mt8163.so" ]]; then
     curl -fsSL -o "$OUT/camera.mt8163.so" "$RAW/system/vendor/lib/hw/camera.mt8163.so"
 fi
 
+echo "$CAMERA_DEVICE" > "$OUT/.device"
+
 echo
-echo "$(ls "$OUT" | wc -l) libraries in $OUT ($(du -sh "$OUT" | cut -f1))"
+echo "$(ls "$OUT"/*.so | wc -l) libraries in $OUT ($(du -sh "$OUT" | cut -f1)) for $CAMERA_DEVICE"

@@ -37,6 +37,25 @@ adb -s <serial> root && adb -s <serial> shell id      # uid=0(root)
 If any of that fails, stop and fix it first. If you cannot boot TWRP, do not
 proceed at all: a bad flash with no recovery path bricks the device.
 
+**`adb root` fails on a fresh LineageOS install even though the build is
+`userdebug`.** It reports:
+
+```
+ADB Root access is disabled by system setting - enable in Settings -> System -> Developer options
+```
+
+LineageOS ships rooted debugging off. Turn it on under Settings -> System
+-> Developer options ("Rooted debugging"), or from the host:
+
+```sh
+adb -s <serial> shell settings put global adb_root 1
+adb -s <serial> reboot
+```
+
+`adbd` reads that at startup, so the reboot is required - setting it alone
+changes nothing. Several later steps need root, so sort this out here
+rather than discovering it at step 9.
+
 ### Your device codename
 
 The first `getprop` above printed it. Export it now, because nearly every
@@ -402,6 +421,12 @@ cat patches/camera-proprietary-files.txt \
 #      wrong colour that no calibration can correct.
 #      These are proprietary Amazon/MediaTek binaries: stock/ is
 #      gitignored, keep it that way.
+#
+#      stock/lib is a per-device cache and the script skips libraries it
+#      already has, so it stamps the codename it fetched and clears itself
+#      if you later build for a different device. If you see it say it is
+#      clearing the cache, that is the stamp doing its job - without it a
+#      second device silently inherits the first one's tuning.
 scripts/fetch-camera-blobs.sh
 
 # 6.3  Place them at the paths the blob list declares
