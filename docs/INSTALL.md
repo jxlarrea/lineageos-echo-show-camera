@@ -669,11 +669,13 @@ unexpected state; 9.2 and 9.3 keep a `.orig` backup on the device.
 > `scripts/patch-awb-d65.sh <serial> --restore`, which puts back the
 > untouched library the two of them share.
 >
-> This is now confirmed on both OV9734 devices rather than a prediction:
-> the `crown` and `checkers` bring-ups each ran neither script and report
-> correct color (photo-verified on `checkers`; daylight on `crown` still
-> unchecked). If you are on an OV9734 device, expect to need nothing
-> here.
+> This is now confirmed on both OV9734 devices rather than a prediction.
+> Two `crown` bring-ups and one `checkers` bring-up each ran neither
+> script and got correct color, verified by photo on all three. If you are
+> on an OV9734 device, expect to need nothing here. The one measurement
+> still missing anywhere is `crown` under natural daylight - every OV9734
+> check so far has been under artificial light, and on `cronos` the two
+> illuminants disagreed sharply.
 
 If you would rather not reflash the whole ROM while iterating, or you
 changed something in the vendor tree after building,
