@@ -72,15 +72,13 @@ vertical flip unconditional, and is photo-confirmed on both `crown` and
 ## Prerequisites
 
 - An Echo Show 5 or 8 already running R0rt1z2's unofficial LineageOS
-  18.1 port -
-  [lineage-18.1-cronos-v0.3](https://github.com/amazon-oss/releases/releases/tag/lineage-18.1-cronos-v0.3)
-  from [amazon-oss/releases](https://github.com/amazon-oss/releases) -
+  18.1 port from [amazon-oss/releases](https://github.com/amazon-oss/releases) -
   amonet-unlocked, with TWRP intact. If you cannot boot TWRP, stop: some of
   these steps can brick a device that has no recovery path.
 - A Linux host with `adb` and `python3`, and a USB cable. USB is what
   matters: TWRP has no networking, so the flashing steps need it. Network
   adb (`adb connect <ip>:5555`) is convenient for the rest but optional.
-- A LineageOS 18.1 build environment for `cronos` (needed to build the
+- A LineageOS 18.1 build environment (needed to build the
   patched boot image and the patched system libraries). Set up the source
   tree per the amazon-oss instructions; `patches/local-manifest-fixes.xml`
   contains the manifest fixes this work needed.
@@ -95,7 +93,7 @@ the route.
 There are three layers. They must all be applied; each fixes failures the
 next layer would otherwise hit.
 
-1. **Kernel** (boot image): Amazon struct layouts, the OV02B10 driver,
+1. **Kernel** (boot image): Amazon struct layouts, the OV02B10/OV9734 driver,
    sensor timing fixes. Requires building and flashing a boot image.
 2. **ROM system libraries** (device tree + AOSP patches): camera provider
    declaration, front-camera feature declaration, sensor orientation,
