@@ -33,8 +33,8 @@ MediaTek device port it is probably the most useful file in the repository.
 
 ## Why this was hard, in one paragraph
 
-The Echo Show 5 ships an Android 7.1 (API 25) camera stack on an Android 9
-era kernel, and this LineageOS port runs Android 11 userspace on that
+The Echo Show ships an Android 7.1 (API 25) camera stack on an Android 9
+era kernel and the LineageOS port runs Android 11 userspace on that
 kernel. Nothing agrees with anything: the blobs need symbols Android 11
 removed, an older display framework than the ROM ships, a cmdq event
 encoding the kernel no longer speaks, and Amazon's kernel struct layouts
