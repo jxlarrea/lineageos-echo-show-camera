@@ -1,4 +1,4 @@
-# Working camera for LineageOS on the Amazon Echo Show 5 (2nd gen)
+# Working camera for LineageOS on the Amazon Echo Show 5 (1st and 2nd gen) and Echo Show 8 (1st gen)
 
 This repository makes the front camera fully functional on unofficial
 LineageOS 18.1 for the Amazon Echo Show 5 2nd gen (`cronos`, MT8163). The
