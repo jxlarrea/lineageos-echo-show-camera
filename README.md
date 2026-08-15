@@ -52,8 +52,7 @@ fixed here, layer by layer.
 | Echo Show 8 | `crown` | OV9734 | working, verified end to end - apply `patches/0014` for the sensor flip |
 | Echo Show 5 | `checkers` | OV9734 | working, community verified - needs the pinned `libdpframework` build the install scripts now select |
 
-Everything below is written for `cronos`. On the OV9734 devices apply only
-the kernel struct patch (0001) and the sensor flip (0014) - their sensor
+On the OV9734 devices apply only the kernel struct patch (0001) and the sensor flip (0014) - their sensor
 driver is already in the tree and selected - and **skip** the two color
 corrections in step 9, which exist only to undo cronos running an OV02B10
 against OV9734 tuning. Three OV9734 bring-ups ran neither and got correct
