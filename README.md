@@ -71,7 +71,7 @@ vertical flip unconditional, and is photo-confirmed on both `crown` and
 
 ## Prerequisites
 
-- An Echo Show 5 2nd gen already running R0rt1z2's unofficial LineageOS
+- An Echo Show 5 or 8 already running R0rt1z2's unofficial LineageOS
   18.1 port -
   [lineage-18.1-cronos-v0.3](https://github.com/amazon-oss/releases/releases/tag/lineage-18.1-cronos-v0.3)
   from [amazon-oss/releases](https://github.com/amazon-oss/releases) -
