@@ -1,0 +1,98 @@
+imgsensor: enumerate the sensor while the privacy latch is engaged
+
+Depends on 0015, which adds gating_current_state().
+
+0015 stops the driver powering the sensor into a rail the privacy latch is
+holding down, and makes an open fail cleanly instead. That is enough when
+the latch is engaged and cleared within one boot. It is not enough when
+the latch is engaged across a reboot, which is exactly what issue #4
+describes, because by then the damage is done in userspace rather than in
+the kernel.
+
+cameraserver runs the sensor search once, early in boot.
+adopt_CAMERA_HW_CheckIsAlive() powers the sensor, reads its chip ID over
+i2c and reports whether anything answered. With the latch engaged nothing
+can answer, so the search fails, the HAL reports no cameras, and
+cameraserver caches that empty device list for the life of the process.
+The legacy passthrough provider computes its device list once and has no
+cameraDeviceStatusChange path, so nothing can add the camera later.
+Clearing the latch afterwards has no effect: the kernel is willing, but no
+client ever asks it for anything. Measured on crown, on a boot with the
+latch engaged:
+
+    Number of camera devices: 0
+
+A shuttered camera is not an absent camera. It is fitted, it is known, and
+it will work the instant the user presses the button. So when the power-on
+fails specifically because the latch is engaged, report the configured
+sensor as present but unprobed rather than reporting nothing. Opens still
+fail while the latch is engaged - kdCISModulePowerOn refuses them, and
+0015 makes that refusal cheap and loud - and they start succeeding as soon
+as it clears.
+
+This is deliberately narrow. It triggers only when gating_current_state()
+says GATED; a genuinely absent or broken sensor still enumerates as absent,
+because that is the truth and faking it would hide real faults.
+
+Verified on crown:
+
+  - normal boot, latch clear: "Number of camera devices: 1", camera opens,
+    no behaviour change and no latch messages in the log
+  - boot with the latch engaged: "Number of camera devices: 1", opening the
+    camera is refused with a blank preview, and the refusal does not loop -
+    2 log lines over 15s, device fully responsive (the runaway retry that
+    patch 0013 exists to prevent does not occur)
+  - latch then cleared with a short press: the camera works again with the
+    same cameraserver process (pid unchanged), no restart, no reboot and
+    no unplug
+
+Apply from the kernel tree root (kernel/amazon/mt8163-4.9):
+    patch -p1 < 0016-camera-enumerate-the-sensor-while-the-privacy-latch-is-engaged.patch
+
+diff --git a/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.c b/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.c
+index ae630894..37a9950d 100644
+--- a/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.c
++++ b/drivers/misc/mediatek/imgsensor/src/mt8163/kd_sensorlist.c
+@@ -61,6 +61,7 @@
+ /*K.S. kernel standard*/
+ #if !defined(CONFIG_MTK_LEGACY)
+ #include <linux/regulator/consumer.h>
++#include <misc/gating.h>
+ #endif /* !defined(CONFIG_MTK_LEGACY) */
+ 
+ /* Camera information */
+@@ -1446,6 +1447,34 @@ static inline int adopt_CAMERA_HW_CheckIsAlive(void)
+ 	/* Bypass redundant search operation of getting sensor ID, */
+ 	/* if power on failed */
+ 	if (err != ERROR_NONE) {
++		/* A sensor behind an engaged privacy latch has no power and
++		 * cannot answer on i2c, but it is fitted and it will work the
++		 * moment the user clears the shutter. Reporting "no sensor"
++		 * here is what makes that unrecoverable: cameraserver runs
++		 * this search once at boot and caches the resulting empty
++		 * device list for the life of the process, and the legacy
++		 * passthrough provider has no way to add a camera later. The
++		 * camera then stays missing after the latch clears, until
++		 * something restarts cameraserver.
++		 *
++		 * Report it present but unprobed instead. Opens still fail
++		 * while the latch is engaged - kdCISModulePowerOn refuses
++		 * them - and start working as soon as it is cleared, with no
++		 * restart and no reboot.
++		 */
++		if (gating_current_state() == GATED) {
++			PK_INFO("privacy latch engaged: reporting the sensor as present but unprobed\n");
++			memset(mtk_ccm_name_tmp, 0, camera_info_size);
++			snprintf(mtk_ccm_name_tmp, camera_info_size,
++				 "%s CAM[%d]:%s;", mtk_ccm_name,
++				 g_invokeSocketIdx[KDIMGSENSOR_INVOKE_DRIVER_0],
++				 g_invokeSensorNameStr[
++					KDIMGSENSOR_INVOKE_DRIVER_0]);
++			memcpy(mtk_ccm_name, mtk_ccm_name_tmp,
++			       camera_info_size);
++			g_IsSearchSensor = 0;
++			return ERROR_NONE;
++		}
+ 		PK_ERR("%s\n",
+ 			err ==
+ 			-ENODEV ? "No device in this socket position" :

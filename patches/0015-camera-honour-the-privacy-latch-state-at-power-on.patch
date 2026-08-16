@@ -1,0 +1,238 @@
+imgsensor: honour the hardware privacy latch state at power-on
+
+On crown and checkers the button that Android sees as the power key is
+physically the privacy mute button. crown.dtsi wires it as:
+
+    amazon-gating {
+        state-gpios  = <&pio 48 GPIO_ACTIVE_LOW>;
+        enable-gpios = <&pio 27 GPIO_ACTIVE_HIGH>;
+        input_event { label = "mute"; linux,code = <116>; gpios = <&pio 47>; };
+    };
+
+linux,code 116 is KEY_POWER, so a single long press does two unrelated
+things at once: Android shows the power menu, and drivers/misc/gating.c
+engages the hardware privacy latch that cuts camera power. The user sees
+the red LED come on and has no reason to connect it to the camera.
+
+That latch is hardware. It survives a reboot, and gating.c deliberately
+refuses to release it from userspace ("Don't allow userspace to turn off
+Privacy Mode"), so only another button press or removing mains power
+clears it.
+
+kdCISModulePowerOn() gates on cam_gate->req_state, but cam_gate is
+kzalloc'd in kd_camera_init(), so req_state comes up as UNGATED, and it is
+only ever updated by notifier callbacks - which cannot replay an event
+from before the driver loaded. On any boot where the latch is engaged the
+driver therefore believes it is ungated, raises cam_pwr_en, and runs the
+whole power-on sequence into a rail the latch is holding down. Measured on
+crown, with the gate pin and the latch sampled on-device at 100ms while
+the kernel log ran:
+
+    133.90 gate=hi latch=1
+    141.87 [PowerON]pinSetIdx:0, currSensorName: ov9734_mipi_raw
+    143.97 ISP_WaitIrq ERROR: IrqStatus(0x00000000),WaitStatus(0x00000400)
+    145.97 [PowerON]pinSetIdx:0, currSensorName: ov9734_mipi_raw
+    148.04 i2c-mt65xx 11007000.i2c: addr: 36, transfer timeout
+
+The sensor is powered on paper and dead in fact: no MIPI frame ever
+arrives, and after the driver's retry power-cycle it stops acknowledging
+on i2c altogether. Every reboot rebuilds the same wrong assumption, which
+is why users report that nothing short of unplugging the device for ~20s
+brings the camera back - the unplug is not resetting the sensor, it is
+resetting the latch. Reported as issue #4.
+
+This adds gating_current_state() to gating.c so the latch can be read
+directly rather than inferred, and syncs req_state from it in
+set_gate_state() before the UNGATED check.
+
+The sync has to run in both directions. The latch releases on any button
+press, but gating.c only notifies for presses it treats as long (>=500ms),
+so a short press clears the latch in hardware and tells nobody. An earlier
+version of this patch synced only the GATED direction; on device that left
+req_state stuck at GATED after the user had already cleared the shutter,
+and the camera stayed refused until a reboot. Reading the hardware in both
+directions also makes the notifier a latency optimisation rather than the
+source of truth, which is what the reboot case needs anyway.
+
+Verified on crown:
+
+  - latch clear: camera opens normally, no change in behaviour
+  - latch engaged, then rebooted: power-on is refused at once with
+    "cannot UNGATE CAM", and no [PowerON]/ISP timeout/i2c wedge follows
+  - latch then cleared with a short press: camera works again with no
+    reboot and no unplug
+
+This is not sufficient on its own when the latch is engaged across a
+reboot. cameraserver runs its sensor search once at boot, finds nothing
+while the latch is engaged, and caches an empty device list for the life
+of the process, so clearing the latch afterwards changes nothing until
+something restarts it. Patch 0016 closes that, and depends on the
+gating_current_state() added here.
+
+Apply from the kernel tree root (kernel/amazon/mt8163-4.9):
+    patch -p1 < 0015-camera-honour-the-privacy-latch-state-at-power-on.patch
+
+diff --git a/drivers/misc/gating.c b/drivers/misc/gating.c
+index 1624ae0a..bcbb728c 100644
+--- a/drivers/misc/gating.c
++++ b/drivers/misc/gating.c
+@@ -53,6 +53,7 @@ struct gating_priv {
+ };
+ 
+ static struct srcu_notifier_head *priv_nh;
++static struct gating_priv *gating_priv_ref;
+ 
+ int register_gating_state_notifier(struct notifier_block *nb)
+ {
+@@ -79,6 +80,24 @@ static enum gating_state __gating_state(struct gating_priv *priv)
+ 	return value;
+ }
+ 
++/* gating_current_state() : read the privacy latch as it is right now.
++ *
++ * The latch is hardware and survives a reboot, but drivers that care about
++ * it only learn of changes through the notifier chain, which by definition
++ * cannot replay events from before they were loaded. Without this they come
++ * up assuming UNGATED and act on that assumption for the whole boot.
++ *
++ * Returns UNGATED/GATED, or -ENODEV before the gating driver has probed.
++ */
++int gating_current_state(void)
++{
++	if (!gating_priv_ref)
++		return -ENODEV;
++
++	return __gating_state(gating_priv_ref);
++}
++EXPORT_SYMBOL(gating_current_state);
++
+ static int __set_gating_state(struct gating_priv *priv, int enable)
+ {
+ 	int i = 0;
+@@ -490,6 +509,11 @@ static int gating_probe(struct platform_device *pdev)
+ 		device_init_wakeup(&pdev->dev,
+ 					priv->input_event->wakeup_capable);
+ 
++	/* Published last, so gating_current_state() never sees a half-set-up
++	 * priv. Everything it touches is initialised by this point.
++	 */
++	gating_priv_ref = priv;
++
+ 	dev_info(dev, "%s : done\n", __func__);
+ 
+ 	return 0;
+@@ -504,6 +528,8 @@ static int gating_remove(struct platform_device *pdev)
+ 	priv = platform_get_drvdata(pdev);
+ 	priv_event = priv->input_event;
+ 
++	gating_priv_ref = NULL;
++
+ 	devm_free_irq(dev,
+ 		      gpiod_to_irq(priv->state_gpio),
+ 		      "gating");
+diff --git a/drivers/misc/mediatek/imgsensor/src/mt8163/camera_hw/camera_project/checkers/kd_camera_hw.c b/drivers/misc/mediatek/imgsensor/src/mt8163/camera_hw/camera_project/checkers/kd_camera_hw.c
+index cecaaf70..0abed185 100644
+--- a/drivers/misc/mediatek/imgsensor/src/mt8163/camera_hw/camera_project/checkers/kd_camera_hw.c
++++ b/drivers/misc/mediatek/imgsensor/src/mt8163/camera_hw/camera_project/checkers/kd_camera_hw.c
+@@ -81,11 +81,33 @@ static enum gating_state conf_cam_gate(enum gating_state state)
+ /* set_gate_state() : check and configure the camera gating state */
+ static enum gating_state set_gate_state(enum gating_state state)
+ {
++	int hw_state;
++
+ 	if (!cam_gate)
+ 		return state;
+ 
+ 	mutex_lock(&cam_gate->mutex);
+ 
++	/* req_state only ever tracks notifier callbacks, and cam_gate is
++	 * kzalloc'd at probe, so after a reboot it reads UNGATED no matter
++	 * what the privacy latch is actually doing. The latch is hardware and
++	 * survives the reboot, so believing req_state here means powering the
++	 * sensor into a rail the latch is holding down: the driver logs
++	 * [PowerON], no MIPI frame ever arrives (ISP_WaitIrq IrqStatus 0) and
++	 * the sensor then drops off i2c entirely. Ask the gating driver what
++	 * the latch is really doing before trusting the cached value.
++	 *
++	 * Sync both ways. The latch releases on any button press, but gating.c
++	 * only raises a notification for presses it considers long (>=500ms),
++	 * so a short press clears the latch in hardware without telling anyone.
++	 * Syncing only the GATED direction would then leave req_state stuck at
++	 * GATED with no path back, and the camera would stay refused after the
++	 * user had already cleared the shutter.
++	 */
++	hw_state = gating_current_state();
++	if (hw_state == UNGATED || hw_state == GATED)
++		cam_gate->req_state = hw_state;
++
+ 	/* Make sure device is in UNGATED Mode before trying to enable CAM */
+ 	if (state == UNGATED && cam_gate->req_state != UNGATED) {
+ 		pr_info("Failed to enable CAM, GATING Mode is ON\n");
+@@ -387,7 +409,7 @@ int kdCISModulePowerOn(enum CAMERA_DUAL_CAMERA_SENSOR_ENUM SensorIdx, char *curr
+ 	if (On) {
+ 		/* Check cam_gate state before powering on sensor */
+ 		if (set_gate_state(UNGATED) != UNGATED) {
+-			PK_DBG("[CAMERA SENSOR] Falied to UNGATE CAM\n");
++			PK_ERR("[CAMERA SENSOR] cannot UNGATE CAM: the privacy latch is engaged; press the mute button to clear it\n");
+ 			goto _kdCISModulePowerOn_exit_;
+ 		}
+ 
+diff --git a/drivers/misc/mediatek/imgsensor/src/mt8163/camera_hw/camera_project/crown/kd_camera_hw.c b/drivers/misc/mediatek/imgsensor/src/mt8163/camera_hw/camera_project/crown/kd_camera_hw.c
+index c2753668..57f76d01 100644
+--- a/drivers/misc/mediatek/imgsensor/src/mt8163/camera_hw/camera_project/crown/kd_camera_hw.c
++++ b/drivers/misc/mediatek/imgsensor/src/mt8163/camera_hw/camera_project/crown/kd_camera_hw.c
+@@ -94,11 +94,33 @@ static enum gating_state conf_cam_gate(enum gating_state state)
+ /* set_gate_state() : check and configure the camera gating state */
+ static enum gating_state set_gate_state(enum gating_state state)
+ {
++	int hw_state;
++
+ 	if (!cam_gate)
+ 		return state;
+ 
+ 	mutex_lock(&cam_gate->mutex);
+ 
++	/* req_state only ever tracks notifier callbacks, and cam_gate is
++	 * kzalloc'd at probe, so after a reboot it reads UNGATED no matter
++	 * what the privacy latch is actually doing. The latch is hardware and
++	 * survives the reboot, so believing req_state here means powering the
++	 * sensor into a rail the latch is holding down: the driver logs
++	 * [PowerON], no MIPI frame ever arrives (ISP_WaitIrq IrqStatus 0) and
++	 * the sensor then drops off i2c entirely. Ask the gating driver what
++	 * the latch is really doing before trusting the cached value.
++	 *
++	 * Sync both ways. The latch releases on any button press, but gating.c
++	 * only raises a notification for presses it considers long (>=500ms),
++	 * so a short press clears the latch in hardware without telling anyone.
++	 * Syncing only the GATED direction would then leave req_state stuck at
++	 * GATED with no path back, and the camera would stay refused after the
++	 * user had already cleared the shutter.
++	 */
++	hw_state = gating_current_state();
++	if (hw_state == UNGATED || hw_state == GATED)
++		cam_gate->req_state = hw_state;
++
+ 	/* Make sure device is in UNGATED Mode before trying to enable CAM */
+ 	if (state == UNGATED && cam_gate->req_state != UNGATED) {
+ 		pr_info("Failed to enable CAM, GATING Mode is ON\n");
+@@ -393,7 +415,7 @@ int kdCISModulePowerOn(enum CAMERA_DUAL_CAMERA_SENSOR_ENUM SensorIdx, char *curr
+ 	if (On) {
+ 		/* Check cam_gate state before powering on sensor */
+ 		if (set_gate_state(UNGATED) != UNGATED) {
+-			PK_DBG("[CAMERA SENSOR] Falied to UNGATE CAM\n");
++			PK_ERR("[CAMERA SENSOR] cannot UNGATE CAM: the privacy latch is engaged; press the mute button to clear it\n");
+ 			goto _kdCISModulePowerOn_exit_;
+ 		}
+ 
+diff --git a/include/misc/gating.h b/include/misc/gating.h
+index 7f42ea1f..76bcb0cd 100644
+--- a/include/misc/gating.h
++++ b/include/misc/gating.h
+@@ -25,4 +25,7 @@ enum gating_state {
+ /* register a srcu notifier call by providing a notifier block */
+ int register_gating_state_notifier(struct notifier_block *nb);
+ 
++/* read the current hardware privacy latch state; -ENODEV before probe */
++int gating_current_state(void);
++
+ #endif

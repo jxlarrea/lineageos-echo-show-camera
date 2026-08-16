@@ -267,6 +267,18 @@ patch -p1 < ~/lineageos-echo-show-camera/patches/0004-imgsensor-ov02b10-driver-s
 
 # 3.4  crown/checkers ONLY - the OV9734 vertical flip (details below)
 patch -p1 < ~/lineageos-echo-show-camera/patches/0014-*.patch
+
+# 3.5  crown/checkers ONLY - honour the privacy latch at camera power-on.
+#      Without it, a long press of the power button (which on these devices
+#      is physically the privacy mute button) leaves the camera dead until
+#      the device is unplugged from mains.
+patch -p1 < ~/lineageos-echo-show-camera/patches/0015-*.patch
+
+# 3.6  crown/checkers ONLY - keep the camera enumerated while the privacy
+#      latch is engaged. Needs 3.5. Without it, a device booted with the
+#      latch on comes up with zero cameras and stays that way until
+#      cameraserver restarts, even after the shutter is cleared.
+patch -p1 < ~/lineageos-echo-show-camera/patches/0016-*.patch
 ```
 
 Each `patch` command lists the files it modified. If you see `FAILED` or a

@@ -52,7 +52,8 @@ fixed here, layer by layer.
 | Echo Show 8 | `crown` | OV9734 | working, verified end to end - apply `patches/0014` for the sensor flip |
 | Echo Show 5 | `checkers` | OV9734 | working, community verified - needs the pinned `libdpframework` build the install scripts now select |
 
-On the OV9734 devices apply only the kernel struct patch (0001) and the sensor flip (0014) - their sensor
+On the OV9734 devices apply only the kernel struct patch (0001), the sensor flip (0014)
+and the two privacy-latch patches (0015, 0016) - their sensor
 driver is already in the tree and selected - and **skip** the two color
 corrections in step 9, which exist only to undo cronos running an OV02B10
 against OV9734 tuning. Three OV9734 bring-ups ran neither and got correct
@@ -67,6 +68,18 @@ for these devices is never compiled in and the sensor reads out inverted.
 vertical flip unconditional, and is photo-confirmed on both `crown` and
 `checkers`: upright picture, correct color, no calibration needed; see
 [docs/INSTALL.md](docs/INSTALL.md) step 3.
+
+**OV9734 devices should also take `patches/0015` and `patches/0016` for the
+privacy latch.** On `crown` and `checkers` the button Android reports as the
+power key is physically the privacy mute button (`linux,code = <116>` on the
+`amazon-gating` node), so a long press both opens the power menu and engages
+the hardware latch that cuts camera power. The latch survives a reboot and
+software cannot clear it, and the camera driver never reads it, so it powers
+the sensor into a dead rail: the camera stays broken until the device is
+unplugged from mains. 0015 makes the driver read the latch and refuse the open
+cleanly; 0016 keeps the camera enumerated while the latch is engaged, so
+clearing the shutter restores it without a cameraserver restart or a reboot.
+Both are validated on `crown`. See issue #4.
 
 ## Prerequisites
 
