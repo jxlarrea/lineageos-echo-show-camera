@@ -16,6 +16,23 @@ device gets:
 | Adaptive auto white balance | working, with a calibrated correction |
 | Black level | corrected (the stock tuning left a 30% grey floor) |
 
+## Also fixed: Bluetooth on the Echo Show 8 (`crown`)
+
+Not camera work, but shipped here because the stock port leaves Bluetooth
+completely broken on `crown`: the adapter crash-loops every ~8 seconds on
+enable (the A2DP sink overlay ships as a runtime RRO, so its services
+resolve as disabled while the profile list expects them), and every BLE
+scan fails with `SCAN_FAILED_INTERNAL_ERROR` because the
+`android.hardware.bluetooth_le` feature is never declared.
+`patches/0017-device-tree-bluetooth-enablement.patch` fixes both and keeps
+A2DP sink working; the patch header carries the full analysis.
+
+The patch is currently for `crown` only, where it is tested and verified
+(build-side and on hardware after a reflash: adapter holds ON, sink
+services running, both features declared). Whether `checkers` needs the
+same treatment is not yet known; if your device shows the same symptoms,
+the patch shows exactly what to change in its tree.
+
 ## The camera working on an Echo Show 5, 2nd gen
 
 https://github.com/user-attachments/assets/1eb858ac-9401-4b0c-a1cb-05f1e1e1a768
@@ -163,6 +180,14 @@ patches/0011-device-tree-camera-enablement.patch
 tree changes (provider declaration, packages, front-camera feature, sensor
 orientation, HAL1 native handle flag).
 [patches/README.md](patches/README.md) explains what each change is for.
+
+Not camera related but required on `crown`:
+`patches/0017-device-tree-bluetooth-enablement.patch` fixes Bluetooth,
+which is otherwise completely broken there (the adapter crash-loops on
+enable and BLE scans fail). It is crown-only for now - tested and
+verified on `crown`, and whether `checkers` needs it too is not yet
+known. The patch header carries the analysis;
+[docs/INSTALL.md](docs/INSTALL.md) step 4 applies it with the others.
 
 The blob list also has to be declared and the vendor makefiles regenerated
 (`device/amazon/<device>/setup-makefiles.sh`) - appending to

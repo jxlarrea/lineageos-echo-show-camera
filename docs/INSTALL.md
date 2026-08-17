@@ -357,7 +357,7 @@ community bring-up. The two devices mount the sensor the same way.
 
 ## Step 4: apply the ROM patches
 
-Two patches inside their own projects, then three applied from the
+Two patches inside their own projects, then four applied from the
 tree root:
 
 ```sh
@@ -367,12 +367,13 @@ patch -p1 < ~/lineageos-echo-show-camera/patches/0005-*.patch
 cd ~/lineage-18.1/frameworks/av
 patch -p1 < ~/lineageos-echo-show-camera/patches/0006-*.patch
 
-# 0011, 0012 and 0013 carry paths relative to the tree root, so they are
-# applied from there rather than from inside a project.
+# 0011, 0012, 0013 and 0017 carry paths relative to the tree root, so they
+# are applied from there rather than from inside a project.
 cd ~/lineage-18.1
 patch -p1 < ~/lineageos-echo-show-camera/patches/0011-*.patch
 patch -p1 < ~/lineageos-echo-show-camera/patches/0012-*.patch
 patch -p1 < ~/lineageos-echo-show-camera/patches/0013-*.patch
+patch -p1 < ~/lineageos-echo-show-camera/patches/0017-*.patch
 ```
 
 0013 stops `cameraserver` starting at boot. That matters: the ROM ships
@@ -388,6 +389,20 @@ on any distribution shipping a recent e2fsprogs (see step 7).
 manifest, the provider packages, the front-camera feature file, the HAL1
 dynamic native handle flag, and the sensor orientation override.
 [patches/README.md](../patches/README.md) explains each change.
+
+0017 is not a camera patch: it fixes Bluetooth, which is completely broken
+without it. It exempts the Bluetooth app from RRO enforcement so the A2DP
+sink overlay compiles into the APK (as a runtime RRO the sink services
+resolve as disabled while the profile list expects them, and the adapter
+crash-loops every ~8 seconds on enable), and it declares the
+`android.hardware.bluetooth_le` feature, without which every BLE scan
+fails with `SCAN_FAILED_INTERNAL_ERROR`. The patch header carries the
+full analysis and the post-build checks.
+
+0017 lands in `device/amazon/crown/` only, so on the other devices it
+applies cleanly but changes nothing that reaches your build. `crown` is
+where it is tested and verified; whether `checkers` shows the same
+defects and needs the same treatment in its own tree is not yet known.
 
 Two of its hunks (the native-handle flag and the orientation override)
 land in `device/amazon/cronos/` specifically. The patch still applies

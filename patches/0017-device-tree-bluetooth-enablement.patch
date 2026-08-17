@@ -1,0 +1,92 @@
+device tree: fix Bluetooth on crown
+
+Two independent device tree defects leave Bluetooth completely broken on
+crown builds. Both are fixed here, in device/amazon/crown only: crown is
+the device this is tested and verified on (build-side by aapt2 and on
+hardware by a reflash). Whether checkers or cronos suffer the same
+defects has not been checked; the sink-profile crash-loop needs the A2DP
+sink overlay that only crown's tree carries, but any device whose tree
+grows one, and any device that wants BLE, will need the same treatment
+in its own tree.
+
+1. The adapter crash-loops every ~8 seconds on enable. crown's Bluetooth
+overlay (amazon-oss commit 68eec76, "Configure and enable A2DP sink")
+sets profile_supported_a2dp_sink and profile_supported_avrcp_controller
+to true, and mt8163-common sets PRODUCT_ENFORCE_RRO_TARGETS := *, so
+that overlay ships as a runtime RRO
+(/vendor/overlay/Bluetooth__auto_generated_rro_vendor.apk) instead of
+compiling into Bluetooth.apk. The Bluetooth app's runtime Config reads
+the bools through the resource system, sees the RRO's true, and adds
+both sink profiles to the must-start list. But the app's manifest
+declares those services with android:enabled="@bool/profile_supported_
+a2dp_sink" (and avrcp_controller), and the component-enabled evaluation
+at package scan resolves the APK-internal default, false, not the RRO.
+AdapterState waits for services Android considers nonexistent, times
+out, and BluetoothManagerService restarts the app forever ("Entering
+STATE_OFF but mEnabled is true; restarting"). Exempting the Bluetooth
+package from RRO enforcement makes DEVICE_PACKAGE_OVERLAYS bake the
+bools into the APK at build time, which is how the working official
+builds behave, and keeps the A2DP sink feature. Note the Android 11
+spelling: PRODUCT_ENFORCE_RRO_EXEMPTED_TARGETS.
+
+2. BLE scans fail with SCAN_FAILED_INTERNAL_ERROR (code 3) even once
+the adapter is ON. The device inherits AOSP's tablet_core_hardware.xml,
+which declares android.hardware.bluetooth but deliberately omits
+android.hardware.bluetooth_le, and nothing in the tree adds it. Copying
+the standard feature file fixes every BLE use case; the MT7668 supports
+LE.
+
+Apply from the source tree root:
+    patch -p1 < 0017-device-tree-bluetooth-enablement.patch
+
+Applies cleanly before or after the camera patches (none of them touch
+device/amazon/crown/device.mk).
+
+Verify after building, before flashing (scripts/verify-build.sh does all
+of this for you when CAMERA_DEVICE=crown):
+    aapt2 dump resources $OUT/.../Bluetooth/Bluetooth.apk \
+        | grep -A1 profile_supported_a2dp_sink   # must show true
+and Bluetooth__auto_generated_rro_vendor.apk must no longer be staged
+under vendor/overlay. On device: pm list features must list both
+android.hardware.bluetooth and android.hardware.bluetooth_le.
+
+Known benign wart, do not chase: the MT7668 answers the stack's
+LE_Set_Event_Mask with HCI status 0x20 (it rejects unknown event-mask
+bits). Fluoride tolerates it and LE works; it will appear in btsnoop
+logs.
+
+diff --git a/device/amazon/crown/device.mk b/device/amazon/crown/device.mk
+--- a/device/amazon/crown/device.mk
++++ b/device/amazon/crown/device.mk
+@@ -34,6 +34,13 @@ PRODUCT_PACKAGES += \
+ PRODUCT_PACKAGES += \
+     mt76x8_bt
+
++# tablet_core_hardware.xml declares android.hardware.bluetooth but
++# deliberately omits android.hardware.bluetooth_le, and without that feature
++# every BluetoothLeScanner.startScan() fails with SCAN_FAILED_INTERNAL_ERROR.
++# The MT7668 supports LE.
++PRODUCT_COPY_FILES += \
++    frameworks/native/data/etc/android.hardware.bluetooth_le.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.bluetooth_le.xml
++
+ # Init
+ PRODUCT_PACKAGES += \
+     init.target.crown.rc
+@@ -50,6 +57,17 @@ PRODUCT_COPY_FILES += \
+ DEVICE_PACKAGE_OVERLAYS += \
+     $(LOCAL_PATH)/overlay
+
++# The Bluetooth app must get the A2DP sink overlay compiled in statically,
++# not as the runtime RRO that mt8163-common's PRODUCT_ENFORCE_RRO_TARGETS := *
++# turns it into. Its manifest declares the A2DP sink and AVRCP controller
++# services with android:enabled="@bool/profile_supported_...", and the
++# component-enabled evaluation at package scan resolves the APK-internal
++# default (false) rather than the RRO value, while the app's runtime profile
++# list reads the same bools through the resource system and does see the RRO's
++# true. The adapter then waits for services Android considers nonexistent and
++# crash-loops every ~8 seconds on enable.
++PRODUCT_ENFORCE_RRO_EXEMPTED_TARGETS += Bluetooth
++
+ PRODUCT_PACKAGES += \
+     FrameworksResOverlayCrown \
+     SystemUIOverlayCrown

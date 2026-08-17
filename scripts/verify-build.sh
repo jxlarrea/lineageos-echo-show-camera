@@ -62,6 +62,17 @@ elif [[ -d "$VENDOR" ]] && [[ -n "$(find "$VENDOR" -type f -newer "$ZIP" -print 
     echo "  You have changed the tree since the last build, so the failures"
     echo "  below are expected. Run 'mka bacon' and check again."
     STALE=1
+elif [[ -f "$OUT/system.img" ]] && [[ "$OUT/system.img" -nt "$ZIP" ]]; then
+    # Every check below reads the staging directory, not the zip. A partial
+    # rebuild (mka systemimage and friends) updates the staging and system.img
+    # but leaves the old zip in place, so the checks can all pass while the
+    # zip you are about to flash contains none of it.
+    echo
+    echo "  NOTE: system.img is newer than $(basename "$ZIP")."
+    echo "  The staging directory was rebuilt after that zip was packaged, so"
+    echo "  the checks below describe a build the zip does not contain. Run"
+    echo "  'mka bacon' to repackage before flashing."
+    STALE=1
 fi
 
 echo
@@ -126,7 +137,54 @@ else
 fi
 
 echo
-if (( fail == 0 )); then
+# Patch 0017 lands in device/amazon/crown only: crown is the device it is
+# tested and verified on. Whether checkers or cronos need the same fixes has
+# not been checked, so their builds are not expected to carry them and these
+# checks would only mislead there.
+if [[ "$CAMERA_DEVICE" == "crown" ]]; then
+echo "== bluetooth (patch 0017, crown device.mk) =="
+[[ -f "$VOUT/etc/permissions/android.hardware.bluetooth_le.xml" ]] \
+    && ok "android.hardware.bluetooth_le.xml staged" \
+    || bad "android.hardware.bluetooth_le.xml is missing" \
+           "patch 0017 is not in this build. Every BLE scan will fail with SCAN_FAILED_INTERNAL_ERROR."
+
+# The A2DP sink bools must be compiled INTO Bluetooth.apk. When they ship
+# only as a runtime RRO, the manifest's android:enabled="@bool/..." on the
+# sink services resolves the APK-internal false at package scan while the
+# runtime profile list sees the RRO's true, and the adapter crash-loops
+# every ~8 seconds on enable.
+BTAPK="$OUT/system/app/Bluetooth/Bluetooth.apk"
+AAPT2="$TREE/out/host/linux-x86/bin/aapt2"
+if [[ ! -f "$BTAPK" ]]; then
+    bad "Bluetooth.apk is not in the build output"
+elif [[ ! -x "$AAPT2" ]]; then
+    bad "cannot check Bluetooth.apk: no host aapt2 at $AAPT2" \
+        "the check needs a completed build; rebuild and run this again."
+elif "$AAPT2" dump resources "$BTAPK" 2>/dev/null \
+        | grep -A1 'bool/profile_supported_a2dp_sink' | grep -q 'true'; then
+    ok "profile_supported_a2dp_sink is true inside Bluetooth.apk"
+else
+    bad "profile_supported_a2dp_sink is false inside Bluetooth.apk" \
+        "patch 0017's RRO exemption is not in this build; the adapter will crash-loop on enable."
+fi
+
+# With the exemption in place the build stops generating the RRO. A leftover
+# staged copy from an earlier incremental build is benign once the APK carries
+# true (the values agree), but a clean build must not produce it.
+if [[ -f "$VOUT/overlay/Bluetooth__auto_generated_rro_vendor.apk" ]]; then
+    bad "Bluetooth__auto_generated_rro_vendor.apk is still staged in vendor/overlay" \
+        "stale from an incremental build: delete it and 'mka systemimage', or run 'mka installclean' and rebuild."
+else
+    ok "no Bluetooth RRO staged in vendor/overlay"
+fi
+fi
+
+echo
+if (( fail == 0 )) && (( STALE )); then
+    echo "$pass checks passed, but they describe the staging directory, not"
+    echo "the zip (see the note above). Run 'mka bacon', then run this again."
+    exit 1
+elif (( fail == 0 )); then
     echo "$pass checks passed."
     [[ -n "$ZIP" ]] && echo "ready to flash: $ZIP"
 elif (( STALE )); then
