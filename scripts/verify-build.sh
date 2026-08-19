@@ -137,12 +137,34 @@ else
 fi
 
 echo
-# Patch 0017 lands in device/amazon/crown only: crown is the device it is
-# tested and verified on. Whether checkers or cronos need the same fixes has
-# not been checked, so their builds are not expected to carry them and these
-# checks would only mislead there.
-if [[ "$CAMERA_DEVICE" == "crown" ]]; then
-echo "== bluetooth (patch 0017, crown device.mk) =="
+# The cronos hardware carries an OV02B10, but the stock cronos_defconfig
+# selects only the OV9734 driver, so a kernel built without step 3.2/3.3
+# probes the wrong sensor and the camera enumerates yet never delivers a
+# frame (an endless ISP_WAIT_IRQ retry loop). This is the one camera
+# failure the staging checks above cannot see, and it is exactly what
+# happens when a tree walked through the guide for crown or checkers is
+# later asked to build cronos: the device-specific kernel steps were
+# never run for it. Check the kernel config the build actually used.
+if [[ "$CAMERA_DEVICE" == "cronos" ]]; then
+echo "== kernel sensor driver (step 3.2/3.3, cronos) =="
+KCONF="$OUT/obj/KERNEL_OBJ/.config"
+if [[ ! -f "$KCONF" ]]; then
+    bad "no built kernel config at $KCONF" "the kernel has not been built in this tree"
+elif grep -q '^CONFIG_CUSTOM_KERNEL_IMGSENSOR=.*ov02b10_mipi_raw' "$KCONF"; then
+    ok "built kernel selects the OV02B10 sensor driver"
+else
+    bad "built kernel does not select ov02b10_mipi_raw" \
+        "steps 3.2/3.3 were never run in this tree: untar the driver and apply patch 0004, then rebuild. The camera will enumerate but never produce a frame without it."
+fi
+fi
+
+echo
+# Patch 0017 lands in device/amazon/crown and device/amazon/cronos: the two
+# devices it is tested and verified on. Whether checkers needs the same fixes
+# has not been checked, so its builds are not expected to carry them and
+# these checks would only mislead there.
+if [[ "$CAMERA_DEVICE" == "crown" || "$CAMERA_DEVICE" == "cronos" ]]; then
+echo "== bluetooth (patch 0017, $CAMERA_DEVICE device.mk) =="
 [[ -f "$VOUT/etc/permissions/android.hardware.bluetooth_le.xml" ]] \
     && ok "android.hardware.bluetooth_le.xml staged" \
     || bad "android.hardware.bluetooth_le.xml is missing" \

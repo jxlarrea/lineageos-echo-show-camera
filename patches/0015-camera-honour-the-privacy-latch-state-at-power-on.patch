@@ -69,6 +69,15 @@ of the process, so clearing the latch afterwards changes nothing until
 something restarts it. Patch 0016 closes that, and depends on the
 gating_current_state() added here.
 
+gating.h guards its declarations with IS_ENABLED(CONFIG_GATING) and
+provides no-latch stubs otherwise (gating_current_state() reports
+UNGATED). CONFIG_GATING is set by the crown, checkers and rook
+defconfigs but not by cronos, which has no amazon-gating hardware, and
+patch 0016 lands a gating call in the shared kd_sensorlist.c: without
+the stubs the cronos kernel fails to link with an undefined reference
+to gating_current_state (found on the first cronos build carrying
+these patches).
+
 Apply from the kernel tree root (kernel/amazon/mt8163-4.9):
     patch -p1 < 0015-camera-honour-the-privacy-latch-state-at-power-on.patch
 
@@ -225,14 +234,38 @@ index c2753668..57f76d01 100644
  		}
  
 diff --git a/include/misc/gating.h b/include/misc/gating.h
-index 7f42ea1f..76bcb0cd 100644
+index 7f42ea1f..6385daf1 100644
 --- a/include/misc/gating.h
 +++ b/include/misc/gating.h
-@@ -25,4 +25,7 @@ enum gating_state {
+@@ -22,7 +22,31 @@ enum gating_state {
+ 	NONE,		/* nothing ongoing, can be used to clear req_state */
+ };
+ 
++#if IS_ENABLED(CONFIG_GATING)
++
  /* register a srcu notifier call by providing a notifier block */
  int register_gating_state_notifier(struct notifier_block *nb);
  
 +/* read the current hardware privacy latch state; -ENODEV before probe */
 +int gating_current_state(void);
++
++#else
++
++/*
++ * Devices without the amazon-gating driver (cronos) have no hardware privacy
++ * latch. Report it permanently released so the shared imgsensor code links
++ * and behaves exactly as it did before the latch handling was added.
++ */
++static inline int register_gating_state_notifier(struct notifier_block *nb)
++{
++	return 0;
++}
++
++static inline int gating_current_state(void)
++{
++	return UNGATED;
++}
++
++#endif /* IS_ENABLED(CONFIG_GATING) */
 +
  #endif

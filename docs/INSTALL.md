@@ -249,6 +249,17 @@ Which parts you run depends on your device, and this tripped the first
 
 Run each command separately and read its output.
 
+> **One tree, several devices:** the per-device split above is per
+> *device*, not per tree. A tree walked through this guide for crown
+> happily builds a cronos ROM without 3.2/3.3 ever having run, and the
+> result is the worst kind of failure: the camera enumerates but never
+> delivers a frame (an endless ISP_WAIT_IRQ retry loop), because the
+> stock cronos_defconfig selects the OV9734 driver its 2nd gen hardware
+> does not have. Before building a second device from an existing tree,
+> re-walk this step and step 6 for that device. `verify-build.sh`
+> checks the built kernel config on cronos and fails if the OV02B10
+> driver is missing.
+
 ```sh
 cd ~/lineage-18.1/kernel/amazon/mt8163-4.9
 
@@ -399,10 +410,11 @@ crash-loops every ~8 seconds on enable), and it declares the
 fails with `SCAN_FAILED_INTERNAL_ERROR`. The patch header carries the
 full analysis and the post-build checks.
 
-0017 lands in `device/amazon/crown/` only, so on the other devices it
-applies cleanly but changes nothing that reaches your build. `crown` is
-where it is tested and verified; whether `checkers` shows the same
-defects and needs the same treatment in its own tree is not yet known.
+0017 lands in `device/amazon/crown/` and `device/amazon/cronos/`, so on
+`checkers` it applies cleanly but changes nothing that reaches your
+build. `crown` and `cronos` are where it is tested and verified; whether
+`checkers` shows the same defects and needs the same treatment in its
+own tree is not yet known.
 
 Two of its hunks (the native-handle flag and the orientation override)
 land in `device/amazon/cronos/` specifically. The patch still applies
