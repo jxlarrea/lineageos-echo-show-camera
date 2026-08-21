@@ -23,7 +23,7 @@ depending on hardware and bandwidth). Everything else is minutes.
 You need one of the three supported Echo Show devices that:
 
 - runs unofficial LineageOS 18.1 from [amazon-oss](https://github.com/amazon-oss)
-- was unlocked with amonet and still boots TWRP
+- was unlocked with **amonet 2.0.1 or newer** and still boots TWRP
 - has adb access with root (`adb root` works)
 
 Verify:
@@ -36,6 +36,45 @@ adb -s <serial> root && adb -s <serial> shell id      # uid=0(root)
 
 If any of that fails, stop and fix it first. If you cannot boot TWRP, do not
 proceed at all: a bad flash with no recovery path bricks the device.
+
+### amonet 2.0.1 is required
+
+This guide is written for and tested on amonet 2.x only. **amonet 1.x is
+retired and its instructions have been removed from this repository.**
+Check before you go any further:
+
+```sh
+adb -s <serial> shell 'dd if=/dev/block/by-name/recovery bs=512 count=2 2>/dev/null' \
+  | grep -qa microloader && echo "amonet 1.x - UPGRADE REQUIRED" || echo "amonet 2.x - ok"
+```
+
+1.x kept a microloader in the first 1 KB of both recovery and boot. 2.x
+removed it: the exploit moved into `preloader`, `lk`, `tee1`, `tee2` and
+`expdb`, `fastbrick` no longer touches the boot partition at all, and boot
+became an ordinary Android boot image. **The two layouts are mutually
+unbootable**, which is why step 8 only writes one of them and
+`scripts/flash-boot.sh` refuses to run against a 1.x device.
+
+If that check says 1.x, upgrade before continuing. Two reasons beyond this
+guide simply not supporting it:
+
+- **You get the full 2 GB of RAM.** 1.x ran these devices on 1 GB. After
+  upgrading `crown`, `MemTotal` reads 1933452 kB; the rest of the 2 GB is
+  reserved carveout. This is the single biggest practical improvement.
+- **2.0.0 has a TWRP-update bug** when upgrading from a 1.x unlock, which
+  is the path you are on. Use 2.0.1 or newer, not 2.0.0.
+
+Upgrading runs `fastbrick`, which rewrites `preloader`, `lk`, `tee1`,
+`tee2` and `expdb`, flashes the new TWRP, and leaves the device in unlocked
+fastboot. It does **not** touch the boot partition, so your existing boot
+image is left in the retired layout and the device will hang at the vendor
+logo until you flash a plain `boot.img`. Do that from fastboot while you are
+already there:
+
+```sh
+fastboot flash boot ~/lineage-18.1/out/target/product/<device>/boot.img
+fastboot reboot
+```
 
 **`adb root` fails on a fresh LineageOS install even though the build is
 `userdebug`.** It reports:
@@ -607,11 +646,11 @@ Reboot into Android once and confirm it comes up before touching the boot
 partition - that way, if the next step goes wrong, you know the ROM itself
 was fine.
 
-The ROM zip already contains `boot.img`, and TWRP re-applies the amonet
-header for you on install, so the device comes up on the new kernel after
-this step alone. Running the flash script below is still worth it: it
-backs the partition up first and verifies the result byte for byte, which
-the zip install does not.
+The ROM zip already contains `boot.img`, and on 2.x it needs no fixup: the
+zip's plain image is already the right shape for the partition, so the device
+comes up on the new kernel after this step alone. Running the flash script
+below is still worth it, because it backs the partition up first and verifies
+the result byte for byte, which the zip install does not.
 
 Boot image second, and **only** with the flash script. Run it from the
 **booted Android system**, not from TWRP - it reads and writes the boot
@@ -622,13 +661,28 @@ cd ~/lineageos-echo-show-camera
 scripts/flash-boot.sh <serial> ~/lineage-18.1
 ```
 
-The script backs up the current boot partition to `backups/`, rebuilds the
-amonet layout (exploit header, relocated boot header, payload at 0x800),
+The script writes the build's plain `boot.img` to the partition verbatim.
+Before it does, it reads the recovery partition and aborts if the device is
+still on amonet 1.x (step 0), and it checks the image itself for a stray
+microloader so a retired 1.x partition dump handed to it by mistake is
+rejected rather than flashed. It backs the partition up to `backups/` first,
 confirms by hash that the image reached the device intact, flashes, and
-verifies byte for byte. If your build host is a VM with USB passed
-through, large pushes can drop data; the script detects that, retries in
-1 MB chunks (you will see dots), and refuses to flash anything that did
-not arrive bit-perfect.
+verifies byte for byte. If your build host is a VM with USB passed through,
+large pushes can drop data; the script detects that, retries in 1 MB chunks
+(you will see dots), and refuses to flash anything that did not arrive
+bit-perfect.
+
+There is a simpler alternative that needs no booted system and no root,
+useful when the device will not boot far enough for adb. `fastbrick` leaves
+the device in unlocked fastboot, and from there:
+
+```sh
+fastboot flash boot ~/lineage-18.1/out/target/product/<device>/boot.img
+fastboot reboot
+```
+
+Note the argument order: `fastboot flash <partition> <file>`. `fastboot
+flash boot.img` omits the partition and fails with "unknown partition".
 
 `adb root` is another VM hazard the scripts absorb for you: it restarts
 adbd, which drops the USB link, and a VM host takes seconds to re-attach
@@ -636,18 +690,13 @@ the device to the guest - long enough that commands issued right after it
 fail with `device not found`. Every script that needs root now polls
 through that window instead of racing it, so if you still see
 `device not found`, the link is genuinely gone (check `adb devices`)
-rather than momentarily blinking. Never `dd` a plain `boot.img` to the
-boot partition on these devices: amonet steals the first two blocks, and a
-plain image produces a hang at the vendor logo that is indistinguishable
-from a bad kernel. If you want to convince yourself first:
+rather than momentarily blinking.
 
-```sh
-scripts/flash-boot.sh --self-test <serial>
-```
-
-That dumps your device's current (working) boot and recovery partitions,
-rebuilds the boot partition from its parts, and requires the result to
-match the original byte for byte.
+The one thing that will brick the device here is writing a **retired amonet
+1.x boot image**, which carries an exploit header in its first two blocks
+and hangs at the vendor logo indistinguishably from a bad kernel. Every
+`boot-pre-*.img` in `backups/` captured before the 2.x upgrade is such an
+image. Reflash from the build tree, never from one of those.
 
 Boot the device and re-establish adb root before continuing.
 
@@ -873,10 +922,36 @@ script does not apply.
 You most likely killed cameraserver while the ISP was streaming; see the
 safety rules. Power cycle it physically.
 
-**Boot hangs at the vendor logo after flashing.**
-The boot partition layout is wrong (this is what happens when a plain image
-is written). Boot TWRP and restore the backup that `flash-boot.sh` made:
-its exact restore command is printed at the end of every flash.
+**Boot hangs at the vendor logo, then reboots.**
+The boot partition holds a retired amonet 1.x image. This is by far the most
+common way to brick one of these, and there are only two ways to get here:
+you restored a `backups/boot-pre-*.img` captured before the 2.x upgrade, or
+you ran `fastbrick` to upgrade and never reflashed boot afterwards.
+`fastbrick` deliberately leaves the boot partition alone, so an upgraded
+device is still carrying its old 1.x image until you replace it.
+
+Either way the fix is the same: write the build's plain `boot.img`. Do not
+go looking for a backup, they are all the wrong shape.
+
+Recovering, in order of preference:
+
+1. **Fastboot**, if you can reach it (`fastbrick` ends there, and amonet's
+   `boot-fastboot.sh` gets you back):
+   `fastboot flash boot out/target/product/<device>/boot.img`
+2. **TWRP**, pushing the plain `boot.img` and `dd`ing it to
+   `/dev/block/platform/soc/by-name/boot`.
+3. If TWRP only offers `adb sideload`, package the plain `boot.img` as a
+   flashable zip rather than hunting for `adb push`.
+
+The device is not hard-bricked in any of these cases. The MT8163 bootrom
+exploit is in mask ROM and cannot be patched out, so the SoC always
+enumerates over USB on a cold power-up and amonet can always rewrite the
+partitions.
+
+Note that these devices have **no power button and no battery**: the only
+keys are volume up, volume down, and a mute button that Android reports as
+`KEY_POWER`. Powering off means unplugging from mains, and key combinations
+have to be held while plugging the power back in.
 
 ## Safety rules
 
@@ -885,7 +960,11 @@ its exact restore command is printed at the end of every flash.
    violation storm livelocks the entire device: no adb, no network, no
    watchdog reboot. Only a physical power cycle recovers it. Use
    `adb reboot`, or close the camera app and give it two seconds first.
-2. **Only flash the boot partition with `scripts/flash-boot.sh`.** See
+2. **Only flash the boot partition with `scripts/flash-boot.sh` or
+   `fastboot flash boot`.** Both write the build's plain `boot.img`. See
    step 8 for why.
 3. Keep the `backups/` directory the scripts create. A bad `/vendor` write
    is not trivially recoverable on these devices; the boot backups are.
+   But **never restore a boot backup captured before the amonet 2.x
+   upgrade**: it is a full partition dump in the retired 1.x layout and will
+   hang the device at the vendor logo. Reflash from the build tree instead.

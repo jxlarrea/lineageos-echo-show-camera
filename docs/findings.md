@@ -31,7 +31,7 @@ The vendor manifest declares `android.hardware.camera.provider@2.4` at
 `internal/0` over hwbinder. That is MediaTek's own provider, served by a
 `camerahalserver` binary that Amazon does not ship on Echo Show devices and that
 this ROM does not build. So the camera service resolves the provider to nothing
-and enumerates zero devices. Nothing has failed yet — the stack was simply never
+and enumerates zero devices. Nothing has failed yet: the stack was simply never
 wired up on this device.
 
 This matters for expectations: the crash chain documented for `crown`
@@ -41,7 +41,7 @@ that has not been done yet.
 
 ## Where the sensor tuning has to come from
 
-The OV9734 static metadata — sensor, lens, flashlight and 3A tuning — is
+The OV9734 static metadata (sensor, lens, flashlight and 3A tuning) is
 compiled into the stock `libcam.halsensor.so`. Strings recovered from it name the
 original MediaTek source paths:
 
@@ -57,7 +57,7 @@ vendor/mediatek/proprietary_mt8163/custom/mt8163/hal/imgsensor_metadata/ov9734_m
 This rules out the otherwise attractive shortcut of transplanting karnak's
 camera stack. karnak (Fire HD 8 2018) is the same SoC, its blob set is a
 generation newer (API 28, Treble, `camerahalserver` + mtkcam3), and it is proven
-on LineageOS 18.1 through 23 — but its tuning only covers GC2375 sensors:
+on LineageOS 18.1 through 23, but its tuning only covers GC2375 sensors:
 
 ```
 $ strings libcameracustom.so | grep -oiE '\bov[0-9]{4}|gc[0-9]{4}'
@@ -66,7 +66,7 @@ gc2375mipi_raw_chxt_rear
 ```
 
 No OV9734, and the stack is closed source, so the metadata cannot be added.
-MediaTek's MT8163 camera HAL sources are not public either — the one promising
+MediaTek's MT8163 camera HAL sources are not public either: the one promising
 repository (`vendor-mtk-sources/Amazon-Fire_HD8_8th_Gen`) is Amazon's GPL kernel
 release, kernel only.
 
@@ -89,9 +89,9 @@ actually provides:
 
 - **45 MediaTek libraries** make up the closure (34 `libcam*`/`libmtkcam*`, plus
   11 transitive dependencies). 17 MB total.
-- Every other dependency — `libgui`, `libui`, `libbinder`, `libutils`,
+- Every other dependency (`libgui`, `libui`, `libbinder`, `libutils`,
   `libcamera_client`, `libcamera_metadata`, `libhardware`, `libcutils`,
-  `libmedia`, `libdpframework`, `libsensor`, libc, libc++ — is already on the
+  `libmedia`, `libdpframework`, `libsensor`, libc, libc++) is already on the
   device.
 - **11 symbols do not resolve.** That is the entire link-level gap.
 
@@ -279,8 +279,14 @@ put the kernel at `0xC00`; it hangs at the vendor logo with no other symptom, an
 looks identical to a bad kernel. The tell is the gzip magic: a good image has
 `1f8b` at `0x800`.
 
-`scripts/flash-boot.sh` implements this and has a `--self-test` that rebuilds a
-known-good partition from its parts and requires a byte-for-byte match.
+**Historical: this describes amonet 1.x, which is retired.** amonet 2.x removed
+the microloader entirely (the exploit moved into `preloader`, `lk`, `tee1`,
+`tee2` and `expdb`) and the boot partition became an ordinary Android boot
+image. `scripts/flash-boot.sh` no longer assembles this layout and its
+`--self-test` has been removed with it; the script now refuses to run against a
+1.x device. The failure mode above still matters, because writing one of these
+1.x partition dumps onto a 2.x device produces exactly the same vendor-logo
+hang. See [INSTALL.md](INSTALL.md) step 0.
 
 Also worth knowing while debugging kernels here: the running kernel embeds its
 source commit in its version string (`4.9.337-gc374d6392fa0`), and
@@ -1795,7 +1801,7 @@ compiled in:
 ## What this does and does not prove
 
 It proves the stack will *link*, and that the mixing problem is far smaller than
-"the ABI does not line up" suggests — 11 shimmable symbols, all clean parameter
+"the ABI does not line up" suggests: 11 shimmable symbols, all clean parameter
 drift, no struct-layout surgery and no binary patching required to get loaded.
 
 It does not prove the stack will *work*. Symbol resolution says nothing about
@@ -1821,8 +1827,8 @@ empirical: build it, install it, and read the tombstones.
 
 ## Approaches ruled out
 
-- **Transplant karnak's Treble camera stack.** Best-looking option on paper —
-  newer blobs, matching kernel vintage, proven on modern LineageOS — but no
+- **Transplant karnak's Treble camera stack.** Best-looking option on paper
+  (newer blobs, matching kernel vintage, proven on modern LineageOS), but no
   OV9734 tuning and no way to add it.
 - **Build the HAL from source.** MediaTek MT8163 camera HAL sources are not
   available.

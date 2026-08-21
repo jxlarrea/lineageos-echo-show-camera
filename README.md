@@ -105,6 +105,28 @@ Both are validated on `crown`. See issue #4.
   18.1 port from [amazon-oss/releases](https://github.com/amazon-oss/releases) -
   amonet-unlocked, with TWRP intact. If you cannot boot TWRP, stop: some of
   these steps can brick a device that has no recovery path.
+- **amonet 2.0.1 or newer. This is required, not a recommendation.**
+  Everything here is written for and tested on 2.x only; amonet 1.x is
+  retired and its instructions have been removed. `scripts/flash-boot.sh`
+  detects a 1.x device and refuses to write to it.
+
+  Upgrade if you have not. Two reasons:
+
+  **The device gets its full 2 GB of RAM.** amonet 1.x left these devices
+  running on 1 GB; 2.x gives you all of it. Measured on `crown` after the
+  upgrade, `MemTotal` is 1933452 kB (the remainder of the 2 GB is reserved
+  carveout). On a device this size that is the difference between a usable
+  system and one that thrashes, and it is reason enough on its own.
+
+  **The boot layout changed and the two are mutually unbootable.** 1.x kept
+  an exploit header in the first two blocks of the boot partition; 2.x
+  removed the microloader entirely and boot became an ordinary Android boot
+  image. Writing either layout onto the other generation hangs the device at
+  the vendor logo.
+
+  Do not use amonet 2.0.0: it has a bug that leaves TWRP not properly
+  updated when upgrading from a 1.x unlock, which is exactly the path you
+  are on. 2.0.1 fixes it.
 - A Linux host with `adb` and `python3`, and a USB cable. USB is what
   matters: TWRP has no networking, so the flashing steps need it. Network
   adb (`adb connect <ip>:5555`) is convenient for the rest but optional.
@@ -156,15 +178,29 @@ hand - 0004 sets the verified configuration. 0003 is debug logging only.
 Build the boot image (`mka bootimage`), then flash it with
 `scripts/flash-boot.sh <adb-serial>`.
 
-**Do not `dd` a plain boot image to the boot partition.** On
-amonet-unlocked devices the partition begins with the exploit header and a
-relocated copy of the boot header; writing a plain image, or writing it at
-a guessed offset, produces a hang at the vendor logo that looks exactly
-like a bad kernel. Two devices were bricked learning this. The flash
-script implements the correct layout, backs up the partition first, and
-verifies byte for byte. `scripts/flash-boot.sh --self-test <adb-serial>`
-proves the assembly logic by rebuilding your device's own working boot
-partition from its parts and requiring an exact match.
+On amonet 2.x the boot partition is an ordinary Android boot image, so the
+build's `boot.img` is written to it verbatim. The flash script backs the
+partition up first, verifies the transfer by hash, and reads the partition
+back afterwards. It also checks the recovery partition and refuses outright
+if the device is still on 1.x, whose layout is mutually unbootable with this
+one.
+
+If the device is not up far enough for adb, fastboot does the same job with
+no booted system and no root. `fastbrick` leaves the device there:
+
+```
+fastboot flash boot out/target/product/<device>/boot.img
+fastboot reboot
+```
+
+Note the argument order: `fastboot flash <partition> <file>`. Omitting the
+partition fails with "unknown partition".
+
+**Backups under `backups/` predating the 2.x upgrade are unbootable.** They
+are full partition dumps, so anything captured on 1.x carries the old
+exploit header and will hang the device at the vendor logo. Three devices
+were bricked on boot layout, the last one exactly this way. After changing
+the unlock, reflash from the build tree, never from an older backup.
 
 ### Layer 2: ROM changes
 
@@ -293,8 +329,12 @@ Learned the hard way; both of these can take the device down completely.
    resulting bus violation storm livelocks the entire device - no adb, no
    ping, no watchdog. Use `adb reboot`, or `am force-stop` the camera app
    first and give it two seconds.
-2. **Only flash boot images with `scripts/flash-boot.sh`** (see the amonet
-   partition layout warning above).
+2. **Only flash boot images with `scripts/flash-boot.sh` or
+   `fastboot flash boot`.** Both take the build's plain `boot.img`. The
+   script additionally refuses a 1.x device and verifies the write.
+3. **Never restore a boot backup captured before the 2.x upgrade.** It is a
+   full partition dump in the retired 1.x layout and will not boot. Reflash
+   from the build tree instead.
 
 ## Repository contents
 

@@ -172,10 +172,13 @@ parameters via environment variables.
 - Build tree: wherever you synced it (`$LINEAGE_TREE`).
   `source build/envsetup.sh && lunch lineage_cronos-userdebug && mka bootimage`
   takes ~20-40 s incrementally.
-- Flash: `scripts/flash-boot.sh <serial>`. It backs up first, verifies
-  byte-for-byte, and has a `--self-test` that reproduces a known-good partition
-  exactly. **Do not `dd` a plain boot.img** - amonet steals the first two
-  blocks; see findings.md.
+- Flash: `scripts/flash-boot.sh <serial>`. It backs up first and verifies
+  byte-for-byte. **Requires amonet 2.0.1 or newer**, which writes the build's
+  plain `boot.img` straight to the partition; the script refuses to run
+  against a still-unupgraded 1.x device. `fastboot flash boot <boot.img>`
+  does the same job without a booted system. Note `cronos` may still be on
+  1.x: check with the command in [INSTALL.md](INSTALL.md) step 0 and upgrade
+  before flashing. Never restore a boot backup taken before that upgrade.
 - Kernel ISP driver: `kernel/amazon/mt8163-4.9/drivers/misc/mediatek/cameraisp/src/mt8163/`
   (`camera_isp.c`, `inc/camera_isp.h`).
 - Sensor driver: `.../imgsensor/src/mt8163/ov02b10_mipi_raw/`.

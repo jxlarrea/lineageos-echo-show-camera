@@ -42,7 +42,7 @@ extern int *__errno(void);
 #define printf(...) __android_log_print(6, "SENSORPOKE", __VA_ARGS__)
 #define O_RDWR 2
 
-/* _IOWR('i', 15, struct ACDK_SENSOR_FEATURECONTROL_STRUCT) — 16 bytes on 32-bit */
+/* _IOWR('i', 15, struct ACDK_SENSOR_FEATURECONTROL_STRUCT), 16 bytes on 32-bit */
 #define KDIMGSENSORIOC_X_FEATURECONCTROL 0xc010690f
 
 #define SENSOR_FEATURE_SET_REGISTER 10

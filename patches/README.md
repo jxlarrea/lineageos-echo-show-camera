@@ -26,7 +26,7 @@ leaves the camera enumerating zero devices exactly as it does today.
 `camerahalserver` binary. That binary exists in the karnak (Fire HD 8 2018) blob
 set but Amazon never shipped it on the Echo Show devices, and nothing in this ROM
 provides it. The camera service looks the provider up, finds nothing, and reports
-no cameras — which is the behaviour observed on device.
+no cameras, which is the behaviour observed on device.
 
 The stock Echo Show blobs are a legacy camera1 HAL module
 (`camera.mt8163.so`), so the matching provider is AOSP's passthrough legacy one:
@@ -95,7 +95,7 @@ transitive MediaTek dependencies (`lib3a`, `libfeatureio`, `libfeatureiodrv`,
 `libhal_effects`, `libhdrproc`, `libimageio*`, `libmtk_mmutils`, `libmtkjpeg`).
 Everything else the blobs need is already present on the device.
 
-Note the stock layout is pre-Treble — the blobs live in `/system/vendor/lib` and
+Note the stock layout is pre-Treble: the blobs live in `/system/vendor/lib` and
 name `/system/bin/linker` as their interpreter. The list rewrites them into
 `/vendor/lib`; `camera.mt8163.so` goes to `/vendor/lib/hw/`.
 
