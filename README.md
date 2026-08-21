@@ -1,13 +1,13 @@
 # Working camera and bluetooth for LineageOS on the Amazon Echo Show 5 (1st and 2nd gen) and Echo Show 8 (1st gen)
 
+<p align="center">
+<a href="https://buymeacoffee.com/jxlarrea"><img src="https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me A Coffee"></a>
+</p>
+
 This repository makes the front camera fully functional on unofficial
 LineageOS 18.1 for the Amazon Echo Show 5 (1st gen, 2nd gen) and Echo Show 8 (1st gen) . The
 stock ROM port ships no camera stack at all; with this work applied, the
 device gets:
-
-<p align="center">
-<a href="https://buymeacoffee.com/jxlarrea"><img src="https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me A Coffee"></a>
-</p>
 
 | Feature | Status |
 | --- | --- |
