@@ -866,6 +866,15 @@ values across factory resets, edit the defaults in
 `shims/libcmdqevent/camera-bringup.rc` and re-run
 `scripts/install-cmdq-event-shim.sh`.
 
+
+## Step 12: Success!
+
+This took weeks of reverse engineering to get it working. If this guide finally got you a fully functional Echo Show, please consider supporting my work and [buy me a coffee](https://buymeacoffee.com/jxlarrea). Thank you! :)
+
+<p align="center">
+<a href="https://buymeacoffee.com/jxlarrea"><img src="https://img.shields.io/badge/Buy%20Me%20A%20Coffee-FFDD00?style=for-the-badge&logo=buy-me-a-coffee&logoColor=black" alt="Buy Me A Coffee"></a>
+</p>
+
 ## Troubleshooting
 
 **Camera app says no camera / `Number of camera devices: 0`.**
