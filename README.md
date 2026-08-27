@@ -20,7 +20,7 @@ device gets:
 | Adaptive auto white balance | working, with a calibrated correction |
 | Black level | corrected (the stock tuning left a 30% grey floor) |
 
-## Also fixed: Bluetooth on `crown` and `cronos`
+## Also fixed: Bluetooth on all three devices
 
 The stock port leaves Bluetooth
 completely broken on these devices: the adapter crash-loops every ~8
@@ -31,12 +31,11 @@ every BLE scan fails with `SCAN_FAILED_INTERNAL_ERROR` because the
 `patches/0017-device-tree-bluetooth-enablement.patch` fixes both defects
 and keeps A2DP sink working; the patch header carries the full analysis.
 
-The patch currently covers `crown` and `cronos`, where it is tested and
-verified (build-side and on hardware after a reflash: adapter holds ON,
-sink services running, both features declared). Whether `checkers` needs
-the same treatment is not yet known; its tree carries the same A2DP sink
-overlay, so if it shows the same symptoms the patch shows exactly what to
-change in its tree.
+Both defects are structural rather than per unit, and the patch covers
+`crown`, `cronos` and `checkers`. All three are verified on hardware after
+a reflash: adapter holds ON, sink services running, both features
+declared. `crown` and `cronos` were verified here, `checkers` by a user in
+[issue #2](https://github.com/jxlarrea/lineageos-echo-show-camera/issues/2).
 
 ## The camera working on an Echo Show 5, 2nd gen
 
@@ -222,13 +221,12 @@ tree changes (provider declaration, packages, front-camera feature, sensor
 orientation, HAL1 native handle flag).
 [patches/README.md](patches/README.md) explains what each change is for.
 
-Not camera related but required on `crown` and `cronos`:
+Not camera related but required on every device:
 `patches/0017-device-tree-bluetooth-enablement.patch` fixes Bluetooth,
-which is otherwise completely broken there (the adapter crash-loops on
-enable and BLE scans fail). Tested and verified on both; whether
-`checkers` needs it too is not yet known. The patch header carries the
-analysis; [docs/INSTALL.md](docs/INSTALL.md) step 4 applies it with the
-others.
+which is otherwise completely broken (the adapter crash-loops on enable
+and BLE scans fail). Tested and verified on hardware on all three. The
+patch header carries the analysis; [docs/INSTALL.md](docs/INSTALL.md)
+step 4 applies it with the others.
 
 The blob list also has to be declared and the vendor makefiles regenerated
 (`device/amazon/<device>/setup-makefiles.sh`) - appending to

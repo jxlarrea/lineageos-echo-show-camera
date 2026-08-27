@@ -449,13 +449,11 @@ crash-loops every ~8 seconds on enable), and it declares the
 fails with `SCAN_FAILED_INTERNAL_ERROR`. The patch header carries the
 full analysis and the post-build checks.
 
-0017 lands in `device/amazon/crown/` and `device/amazon/cronos/`, so on
-`checkers` it applies cleanly but changes nothing that reaches your
-build. `crown` and `cronos` are where it is tested and verified; whether
-`checkers` shows the same defects and needs the same treatment in its
-own tree is not yet known.
+0017 lands in `device/amazon/crown/`, `device/amazon/cronos/` and
+`device/amazon/checkers/`, so it reaches your build whichever device you
+are on. All three are verified on hardware after a reflash.
 
-Two of its hunks (the native-handle flag and the orientation override)
+Two hunks of 0011 (the native-handle flag and the orientation override)
 land in `device/amazon/cronos/` specifically. The patch still applies
 cleanly on any device because the sync brings every device tree, but on
 crown/checkers those two changes never reach your build. That is fine:

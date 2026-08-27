@@ -1,13 +1,15 @@
-device tree: fix Bluetooth on crown and cronos
+device tree: fix Bluetooth on crown, cronos and checkers
 
 Two independent device tree defects leave Bluetooth completely broken on
-these builds. Both are fixed here, per device, in device/amazon/crown
-and device/amazon/cronos: the two devices this is tested and verified on
-(build-side by aapt2 and on hardware by a reflash; both show identical
-symptoms and root causes). Whether checkers suffers the same defects has
-not been checked; its tree carries the same A2DP sink overlay, so if its
-Bluetooth shows the same crash loop the same two changes belong in
-device/amazon/checkers/device.mk.
+these builds. Both are fixed here, per device, in device/amazon/crown,
+device/amazon/cronos and device/amazon/checkers: all three show identical
+symptoms and root causes, and all three are verified on hardware after a
+reflash (crown and cronos locally, checkers by @markkmark2 in issue #2:
+adapter holds ON, both features declared, A2DP sink enabled, a speaker
+paired). The defects are structural rather than per unit: every one of
+these trees carries the same A2DP sink overlay, mt8163-common turns it
+into a runtime RRO for all of them, and nothing anywhere declares
+android.hardware.bluetooth_le.
 
 1. The adapter crash-loops every ~8 seconds on enable. The per-device
 Bluetooth overlay ("Configure and enable A2DP sink", crown commit
@@ -44,7 +46,7 @@ device.mk hunks do not overlap these; expect a line offset message when
 0011 went first).
 
 Verify after building, before flashing (scripts/verify-build.sh does all
-of this for you on crown and cronos):
+of this for you on every device):
     aapt2 dump resources $OUT/.../Bluetooth/Bluetooth.apk \
         | grep -A1 profile_supported_a2dp_sink   # must show true
 and Bluetooth__auto_generated_rro_vendor.apk must no longer be staged
@@ -126,3 +128,38 @@ diff --git a/device/amazon/cronos/device.mk b/device/amazon/cronos/device.mk
  PRODUCT_PACKAGES += \
      FrameworksResOverlayCronos \
      SystemUIOverlayCronos
+diff --git a/device/amazon/checkers/device.mk b/device/amazon/checkers/device.mk
+--- a/device/amazon/checkers/device.mk
++++ b/device/amazon/checkers/device.mk
+@@ -34,6 +34,13 @@ PRODUCT_PACKAGES += \
+ PRODUCT_PACKAGES += \
+     mt76x8_bt
+ 
++# tablet_core_hardware.xml declares android.hardware.bluetooth but
++# deliberately omits android.hardware.bluetooth_le, and without that feature
++# every BluetoothLeScanner.startScan() fails with SCAN_FAILED_INTERNAL_ERROR.
++# The MT76x8 supports LE.
++PRODUCT_COPY_FILES += \
++    frameworks/native/data/etc/android.hardware.bluetooth_le.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.bluetooth_le.xml
++
+ # Init
+ PRODUCT_PACKAGES += \
+     init.target.checkers.rc
+@@ -50,6 +57,17 @@ PRODUCT_COPY_FILES += \
+ DEVICE_PACKAGE_OVERLAYS += \
+     $(LOCAL_PATH)/overlay
+ 
++# The Bluetooth app must get the A2DP sink overlay compiled in statically,
++# not as the runtime RRO that mt8163-common's PRODUCT_ENFORCE_RRO_TARGETS := *
++# turns it into. Its manifest declares the A2DP sink and AVRCP controller
++# services with android:enabled="@bool/profile_supported_...", and the
++# component-enabled evaluation at package scan resolves the APK-internal
++# default (false) rather than the RRO value, while the app's runtime profile
++# list reads the same bools through the resource system and does see the RRO's
++# true. The adapter then waits for services Android considers nonexistent and
++# crash-loops every ~8 seconds on enable.
++PRODUCT_ENFORCE_RRO_EXEMPTED_TARGETS += Bluetooth
++
+ PRODUCT_PACKAGES += \
+     FrameworksResOverlayCheckers \
+     SystemUIOverlayCheckers

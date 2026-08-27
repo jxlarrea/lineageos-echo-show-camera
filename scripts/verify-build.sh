@@ -159,11 +159,9 @@ fi
 fi
 
 echo
-# Patch 0017 lands in device/amazon/crown and device/amazon/cronos: the two
-# devices it is tested and verified on. Whether checkers needs the same fixes
-# has not been checked, so its builds are not expected to carry them and
-# these checks would only mislead there.
-if [[ "$CAMERA_DEVICE" == "crown" || "$CAMERA_DEVICE" == "cronos" ]]; then
+# Patch 0017 lands in device/amazon/crown, device/amazon/cronos and
+# device/amazon/checkers. All three carry the same two defects and all three
+# are verified on hardware, so these checks run on every device.
 echo "== bluetooth (patch 0017, $CAMERA_DEVICE device.mk) =="
 [[ -f "$VOUT/etc/permissions/android.hardware.bluetooth_le.xml" ]] \
     && ok "android.hardware.bluetooth_le.xml staged" \
@@ -198,7 +196,6 @@ if [[ -f "$VOUT/overlay/Bluetooth__auto_generated_rro_vendor.apk" ]]; then
         "stale from an incremental build: delete it and 'mka systemimage', or run 'mka installclean' and rebuild."
 else
     ok "no Bluetooth RRO staged in vendor/overlay"
-fi
 fi
 
 echo
