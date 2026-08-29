@@ -16,6 +16,17 @@ Apply from the source tree root:
 proprietary-files.txt additions are separate: append
 cronos-camera-proprietary-files.txt (see patches/README.md section 3).
 
+Base: amazon-oss android_device_amazon_mt8163-common lineage-18.1 at
+5ac2965 ("Copy missing stock feature XMLs", 2026-08-24) and
+android_device_amazon_cronos at 81ed9d3. 5ac2965 rewrote the camera
+PRODUCT_COPY_FILES block (it now copies camera.front.xml alongside the
+back-camera camera.xml), so the mt8163.mk hunk was regenerated against it
+on 2026-08-29. On a tree synced before that commit the hunk fails with
+"Hunk #1 FAILED at 54" and leaves mt8163.mk.rej: run
+"repo sync device/amazon/mt8163-common" and apply again. Never skip the
+hunk: without it the build keeps android.hardware.camera.xml, which breaks
+CameraX device-wide (scripts/verify-build.sh catches this).
+
 diff --git a/device/amazon/mt8163-common/manifest.xml b/device/amazon/mt8163-common/manifest.xml
 index 64c7717..669d448 100644
 --- a/device/amazon/mt8163-common/manifest.xml
@@ -45,10 +56,10 @@ index 64c7717..669d448 100644
      <hal format="hidl">
          <name>android.hardware.drm</name>
 diff --git a/device/amazon/mt8163-common/mt8163.mk b/device/amazon/mt8163-common/mt8163.mk
-index 5259e13..1ab42c4 100644
+index eb83e9a..0995dff 100644
 --- a/device/amazon/mt8163-common/mt8163.mk
 +++ b/device/amazon/mt8163-common/mt8163.mk
-@@ -54,12 +54,21 @@ PRODUCT_PACKAGES += \
+@@ -54,13 +54,21 @@ PRODUCT_PACKAGES += \
  
  # Camera
  PRODUCT_PACKAGES += \
@@ -59,13 +70,14 @@ index 5259e13..1ab42c4 100644
      libsensorndkbridge
  
 +# These devices have a single front-facing camera and no back camera, so
-+# advertise camera.front rather than the plain camera.xml (which declares
++# advertise only camera.front, not the plain camera.xml (which declares
 +# android.hardware.camera, i.e. a back camera). Getting this wrong is not
 +# cosmetic: CameraX's CameraValidator only checks for a back camera when
 +# FEATURE_CAMERA is advertised, so the bogus feature made it fail device-wide
 +# with "Camera LensFacing verification failed" and retry init forever in any
 +# app that does not set an availableCamerasLimiter.
  PRODUCT_COPY_FILES += \
+-    frameworks/native/data/etc/android.hardware.camera.front.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.front.xml \
 -    frameworks/native/data/etc/android.hardware.camera.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.xml
 +    frameworks/native/data/etc/android.hardware.camera.front.xml:$(TARGET_COPY_OUT_VENDOR)/etc/permissions/android.hardware.camera.front.xml
  

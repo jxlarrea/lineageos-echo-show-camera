@@ -45,6 +45,12 @@ Applies cleanly before or after the camera patches (0011's cronos
 device.mk hunks do not overlap these; expect a line offset message when
 0011 went first).
 
+Since amazon-oss mt8163-common 5ac2965 (2026-08-24) the common tree also
+copies android.hardware.bluetooth_le.xml. The per-device line here is the
+same source:destination pair, which the build de-duplicates, so this patch
+is unchanged and still applies cleanly on trees from either side of that
+commit.
+
 Verify after building, before flashing (scripts/verify-build.sh does all
 of this for you on every device):
     aapt2 dump resources $OUT/.../Bluetooth/Bluetooth.apk \

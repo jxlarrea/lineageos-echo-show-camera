@@ -460,6 +460,28 @@ crown/checkers those two changes never reach your build. That is fine:
 both devices are confirmed working without them, and the orientation is
 set at runtime by `camera-bringup.rc` in step 9 anyway.
 
+The tree-root patches track the amazon-oss `lineage-18.1` branches as
+synced by step 2, and 0011 was regenerated on 2026-08-29 against
+`mt8163-common` commit `5ac2965` ("Copy missing stock feature XMLs",
+2026-08-24), which rewrote the camera `PRODUCT_COPY_FILES` block. If your
+tree was synced before that commit, 0011 fails with `Hunk #1 FAILED at 54`
+and leaves `device/amazon/mt8163-common/mt8163.mk.rej`. Do not skip the
+hunk: without it the build keeps the back-camera
+`android.hardware.camera.xml` and CameraX breaks device-wide (the
+`verify-build.sh` check in step 7 catches this). Sync the common tree and
+apply again:
+
+```sh
+cd ~/lineage-18.1
+repo sync -c --no-clone-bundle --no-tags device/amazon/mt8163-common
+patch -p1 < ~/lineageos-echo-show-camera/patches/0011-*.patch
+```
+
+The same upstream commit also copies `android.hardware.bluetooth_le.xml`
+from `mt8163-common`. 0017 still adds it per device; the two are the same
+source and destination pair, so the build keeps one copy and neither
+patch needs changing.
+
 ## Step 5: install the compatibility shim into the tree
 
 The 11-symbol shim is built by the ROM as a normal Soong module. Copy it
