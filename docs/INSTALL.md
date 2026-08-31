@@ -477,6 +477,31 @@ repo sync -c --no-clone-bundle --no-tags device/amazon/mt8163-common
 patch -p1 < ~/lineageos-echo-show-camera/patches/0011-*.patch
 ```
 
+The drift bites in the mirror direction too: a pre-rebase copy of 0011
+(downloaded before 2026-08-29) fails the same hunk on a tree synced past
+`5ac2965`, and the failure is easy to miss because the other hunks apply
+and the build still succeeds. The tell in `verify-build.sh` is
+`android.hardware.camera.front.xml` staged but `libcamera_shim.so` missing
+and the back-camera `android.hardware.camera.xml` still present: `5ac2965`
+stages the front feature XML by itself, so that check passing no longer
+proves 0011 is in the build. To recover, restore the project to pristine
+and apply the current patch:
+
+```sh
+cd ~/lineage-18.1/device/amazon/mt8163-common
+git checkout -- .
+rm -f mt8163.mk.rej mt8163.mk.orig
+cd ~/lineage-18.1
+patch -p1 < ~/lineageos-echo-show-camera/patches/0011-*.patch
+```
+
+Confirm no hunk reports `FAILED`, then run `mka installclean` before
+rebuilding: an incremental build never deletes a file that was dropped
+from `PRODUCT_COPY_FILES`, so the stale back-camera XML stays in the
+output even once the patch is in. Avoid `git clean -fd` in that project:
+it also deletes the shim module copied in during step 5, and you would
+have to redo that step.
+
 The same upstream commit also copies `android.hardware.bluetooth_le.xml`
 from `mt8163-common`. 0017 still adds it per device; the two are the same
 source and destination pair, so the build keeps one copy and neither

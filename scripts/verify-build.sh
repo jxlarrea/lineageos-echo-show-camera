@@ -97,7 +97,7 @@ P="$VOUT/etc/permissions"
 [[ -f "$P/android.hardware.camera.front.xml" ]] && ok "android.hardware.camera.front.xml staged" \
     || bad "android.hardware.camera.front.xml is missing" "patch 0011 is not in this build"
 [[ -f "$P/android.hardware.camera.xml" ]] && bad "the back-camera android.hardware.camera.xml is still staged" \
-    "patch 0011 replaces it; leaving it breaks CameraX device-wide" \
+    "patch 0011 replaces it and leaving it breaks CameraX device-wide. Either the mt8163.mk hunk did not apply (look for device/amazon/mt8163-common/mt8163.mk.rej) or the file is stale from an incremental build: run 'mka installclean' and rebuild." \
     || ok "the back-camera android.hardware.camera.xml is gone"
 
 echo
