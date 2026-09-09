@@ -37,6 +37,22 @@ a reflash: adapter holds ON, sink services running, both features
 declared. `crown` and `cronos` were verified here, `checkers` by a user in
 [issue #2](https://github.com/jxlarrea/lineageos-echo-show-camera/issues/2).
 
+## Also fixed: echo cancellation on the Echo Show 8
+
+Every capture on these devices hears the speaker at full strength, and
+Android offers no echo canceller: the ROM's effects config keeps the AOSP
+one commented out, and enabling it would not help because Android 11's
+AudioFlinger never feeds it the playback signal. The microphone FPGA,
+however, delivers a sample aligned loopback of the DAC output on channels 4
+and 5 of its 6 channel stream, which nothing in the ROM uses.
+`shims/libamznaec/` is a small library preloaded into the audio HAL that
+runs WebRTC's echo canceller on the microphone channel the HAL keeps, with
+that loopback as the far end. Measured on `crown`: 38 to 44 dB of echo
+removed at about 13 percent of one core. Build with
+`shims/libamznaec/build.sh`, install with `scripts/install-amznaec-shim.sh`,
+and read [docs/echo-cancellation.md](docs/echo-cancellation.md) for the
+analysis, the measurements and how a ROM can carry it.
+
 ## The camera working on an Echo Show 5, 2nd gen
 
 https://github.com/user-attachments/assets/1eb858ac-9401-4b0c-a1cb-05f1e1e1a768
@@ -349,6 +365,8 @@ Learned the hard way; both of these can take the device down completely.
 | [patches/](patches/) | Kernel and AOSP patches, numbered in application order |
 | [shims/libcamera_shim/](shims/libcamera_shim/) | Source shim closing the 11-symbol gap between the API 25 blobs and Android 11 |
 | [shims/libcmdqevent/](shims/libcmdqevent/) | LD_PRELOAD shim: cmdq event-id translation, AWB output correction, diagnostic tracers |
+| [shims/libamznaec/](shims/libamznaec/) | LD_PRELOAD shim for the audio HAL: WebRTC echo cancellation on the FPGA microphone stream using its DAC loopback channels |
+| [docs/echo-cancellation.md](docs/echo-cancellation.md) | The echo cancellation analysis, measurements and integration notes for ROM maintainers |
 | [scripts/](scripts/) | Fetching, patching, installing, flashing, calibration |
 | [tools/cmdq-trace/](tools/cmdq-trace/) | On-device diagnostic tools (ioctl tracers, ISP register/IRQ probes, sensor register poke) |
 

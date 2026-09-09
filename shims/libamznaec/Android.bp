@@ -1,0 +1,24 @@
+// Built inside the LineageOS tree (see build.sh), which supplies the WebRTC
+// audio processing library the ROM already ships in /vendor/lib.
+cc_library_shared {
+    name: "libamznaec_shim",
+    vendor: true,
+    compile_multilib: "32",
+    srcs: ["amznaec_shim.cpp"],
+    include_dirs: [
+        "external/webrtc",
+        "external/tinyalsa/include",
+    ],
+    shared_libs: [
+        "libwebrtc_audio_preprocessing",
+        "libcutils",
+        "liblog",
+        "libdl",
+    ],
+    cflags: [
+        "-DWEBRTC_POSIX",
+        "-Wall",
+        "-Werror",
+        "-Wno-unused-parameter",
+    ],
+}

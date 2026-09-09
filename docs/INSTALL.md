@@ -1022,3 +1022,20 @@ have to be held while plugging the power back in.
    But **never restore a boot backup captured before the amonet 2.x
    upgrade**: it is a full partition dump in the retired 1.x layout and will
    hang the device at the vendor logo. Reflash from the build tree instead.
+
+## Step 12 (optional): echo cancellation
+
+Only for devices whose audio HAL blob reads the FPGA microphone stream
+(`crown` verified; `checkers` and `cronos` untested). It needs no rebuild of
+the ROM, only the tree for compiling the shim:
+
+```sh
+shims/libamznaec/build.sh                  # builds inside $LINEAGE_TREE
+scripts/install-amznaec-shim.sh <serial>   # pushes the shim, adds the preload, reboots
+adb -s <serial> shell logcat -d | grep amznaec   # expect a "mic PCM 0:22 opened" line
+```
+
+The shim is a pass through when `persist.vendor.amznaec.enable` is 0 and
+can be removed by restoring `/vendor/etc/init/android.hardware.audio.service.rc.orig`.
+Details, measurements and tuning properties: [echo-cancellation.md](echo-cancellation.md).
+
