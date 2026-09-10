@@ -32,6 +32,20 @@ adb -s "$DEVICE" shell '
     fi
     grep -n "LD_PRELOAD" $rc
 '
+# The port sets the TLV320AIC3101 analog mic gain to its maximum (+40 dB, register 80)
+# in audio_device.xml, which clips the ADC at loud playback and makes the echo
+# uncancellable. Put it back to Amazon's +20 dB (40) and restore the level digitally
+# after cancellation, where it amplifies clean audio instead.
+adb -s "$DEVICE" shell '
+    for x in /system/etc/audio_device.xml /vendor/etc/audio_device.xml; do
+        [ -f $x ] || continue
+        grep -q "MICPGA Volume Ctrl\" value=\"80\"" $x || continue
+        [ -f $x.orig ] || cp $x $x.orig
+        sed -i "s|MICPGA Volume Ctrl\" value=\"80\"|MICPGA Volume Ctrl\" value=\"40\"|g" $x
+        echo "analog mic gain set to 40 in $x"
+    done
+    setprop persist.vendor.amznaec.gain_db 20
+'
 echo "installed. The audio HAL picks the shim up at the next boot."
 if [[ "${2:-}" != "--no-reboot" ]]; then
     adb -s "$DEVICE" reboot

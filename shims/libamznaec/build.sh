@@ -13,7 +13,7 @@ DEST="$TREE/vendor/jxlarrea/amznaec"
 LUNCH="${LUNCH_TARGET:-$(sed -n 's/^PREVIOUS_BUILD_CONFIG := //p' "$TREE"/out/target/product/*/previous_build_config.mk 2>/dev/null | head -1)}"
 [[ -n "$LUNCH" ]] || { echo "set LUNCH_TARGET (e.g. lineage_crown-userdebug)" >&2; exit 1; }
 mkdir -p "$DEST" "$HERE/out"
-cp "$HERE/amznaec_shim.cpp" "$HERE/Android.bp" "$DEST/"
+rm -rf "$DEST"; mkdir -p "$DEST"; cp -r "$HERE/amznaec_shim.cpp" "$HERE/Android.bp" "$HERE/speexdsp" "$DEST/"
 # envsetup.sh is not clean under set -u, so the tree build runs in its own shell.
 bash -c 'cd "$1" && source build/envsetup.sh >/dev/null 2>&1 && lunch "$2" >/dev/null 2>&1 && m libamznaec_shim' _ "$TREE" "$LUNCH" > "$HERE/out/build.log" 2>&1 \
     || { tail -30 "$HERE/out/build.log" >&2; echo "build failed (full log: $HERE/out/build.log)" >&2; exit 1; }

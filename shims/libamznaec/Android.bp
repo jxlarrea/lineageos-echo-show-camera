@@ -4,7 +4,19 @@ cc_library_shared {
     name: "libamznaec_shim",
     vendor: true,
     compile_multilib: "32",
-    srcs: ["amznaec_shim.cpp"],
+    srcs: [
+        "amznaec_shim.cpp",
+        "speexdsp/libspeexdsp/mdf.c",
+        "speexdsp/libspeexdsp/preprocess.c",
+        "speexdsp/libspeexdsp/filterbank.c",
+        "speexdsp/libspeexdsp/fftwrap.c",
+        "speexdsp/libspeexdsp/kiss_fft.c",
+        "speexdsp/libspeexdsp/kiss_fftr.c",
+    ],
+    local_include_dirs: [
+        "speexdsp/include",
+        "speexdsp/libspeexdsp",
+    ],
     include_dirs: [
         "external/webrtc",
         "external/tinyalsa/include",
@@ -17,8 +29,15 @@ cc_library_shared {
     ],
     cflags: [
         "-DWEBRTC_POSIX",
+        "-DFLOATING_POINT",
+        "-DUSE_KISS_FFT",
+        "-DEXPORT=",
+        "-DVAR_ARRAYS",
         "-Wall",
-        "-Werror",
         "-Wno-unused-parameter",
+        "-Wno-unused-variable",
+        "-Wno-unused-function",
+        "-Wno-sign-compare",
+        "-Wno-implicit-fallthrough",
     ],
 }
