@@ -63,6 +63,9 @@
  *                                         after cancellation (use with the codec's analog
  *                                         mic gain at Amazon's +20 dB instead of +40 dB,
  *                                         which clips at loud playback)
+ *   persist.vendor.amznaec.ref_clip   0   experimental: hard clip the loopback reference at
+ *                                         this fraction of full scale (x1000, e.g. 250) so
+ *                                         the filter can model an amplifier that clips
  *   persist.vendor.amznaec.log        0   1 = log levels every 5 s
  *   persist.vendor.amznaec.replay     ""  debug: path of a raw 6 channel S24_3LE file
  *                                         whose frames replace the captured ones
@@ -117,7 +120,7 @@ struct Settings {
     bool enable, aec, ns, hpf, log, extended, agnostic;
     int aec_level, ns_level, delay_ms, mics, mute, array, target_deg;
     int engine, spx_filter_ms, spx_echo_suppress, spx_echo_suppress_active, spx_denoise, spx_noise_suppress, spx_stereo;
-    int spx_headroom_db, gain_db;
+    int spx_headroom_db, gain_db, ref_clip;
     char geom[PROPERTY_VALUE_MAX];
     char replay[PROPERTY_VALUE_MAX];
     char dump[PROPERTY_VALUE_MAX];
@@ -200,6 +203,7 @@ Settings read_settings() {
     s.spx_stereo = property_get_int32("persist.vendor.amznaec.spx_stereo", 1);
     s.spx_headroom_db = property_get_int32("persist.vendor.amznaec.spx_headroom_db", 12);
     s.gain_db = property_get_int32("persist.vendor.amznaec.gain_db", 0);
+    s.ref_clip = property_get_int32("persist.vendor.amznaec.ref_clip", 0);
     return s;
 }
 
@@ -384,6 +388,11 @@ void process_block_l(uint8_t* frames) {
         for (int m = 0; m < kMics; m++) g.near_[m][f] = s24f(fr + m * 3);
         g.refl[f] = s24f(fr + kRefFirst * 3);
         g.refr[f] = s24f(fr + (kRefFirst + 1) * 3);
+        if (g.s.ref_clip > 0) {
+            float c = (float)g.s.ref_clip / 1000.f;
+            g.refl[f] = fmaxf(-c, fminf(c, g.refl[f]));
+            g.refr[f] = fmaxf(-c, fminf(c, g.refr[f]));
+        }
         g.ref[f] = (g.refl[f] + g.refr[f]) * 0.5f;
         e_ref += (double)g.ref[f] * g.ref[f];
         e_in += (double)g.near_[g.sel[0]][f] * g.near_[g.sel[0]][f];
