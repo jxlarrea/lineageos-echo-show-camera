@@ -2,6 +2,10 @@
 
 This describes a working software echo canceller for the Amazon Echo Show 8 (`crown`) on the unofficial LineageOS 18.1 port, measured on two units running `lineage-18.1-crown-v0.5`. It should apply unchanged to the Echo Show 5 (`checkers`, `cronos`), which use the same microphone front end with a 4 channel variant of the stream. Source, build script and install script: `shims/libamznaec/` and `scripts/install-amznaec-shim.sh` in this repository.
 
+## For the port maintainer, in two lines
+
+Two changes make the difference, and the first needs no code from this repository. (1) Revert the crown microphone PGA from 80 to Amazon's 40 in `etc/audio_device.xml`: at +40 dB the ADC hard clips during loud playback (a quarter of all samples at full scale in the measurement below), which no echo canceller can undo; apply the missing loudness digitally after capture instead. (2) Build `shims/libamznaec` as a vendor module and preload it into the audio HAL, the same way the port preloads `libcamsensormeta_shim` into `camerahalserver`; it runs WebRTC's canceller on the FPGA microphone stream with the stream's own DAC loopback channels as the far end. The rest of this document is the evidence: what the stream contains, why the AOSP effect cannot work here, the double talk measurements behind the default settings, and two things that were measured and rejected (beamforming on this array, a linear-only Speex engine).
+
 ## The problem
 
 Every capture on these devices hears the speaker at full strength. Anything that listens while the device plays, a voice assistant listening for a stop word during TTS, a wake word engine during music, a call, gets the playback mixed into the microphone signal. Android reports no echo canceller: `AcousticEchoCanceler.isAvailable()` is false because `/vendor/etc/audio_effects.xml` is the stock AOSP template with the `pre_processing` library, the `aec`, `ns` and `agc` effects and the `voice_communication` preprocess block all inside an XML comment, even though `/vendor/lib/soundfx/libaudiopreprocessing.so` ships in the image.
