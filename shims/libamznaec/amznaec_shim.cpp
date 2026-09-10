@@ -59,10 +59,11 @@
  *   persist.vendor.amznaec.spx_echo_suppress_active 0  same, while the near end is active
  *   persist.vendor.amznaec.spx_denoise    0   Speex noise suppression on/off
  *   persist.vendor.amznaec.spx_noise_suppress -15  Speex noise suppression in dB
- *   persist.vendor.amznaec.gain_db    0   digital gain applied to the processed channel
- *                                         after cancellation (use with the codec's analog
- *                                         mic gain at Amazon's +20 dB instead of +40 dB,
- *                                         which clips at loud playback)
+ *   persist.vendor.amznaec.gain_db    20  digital gain applied to the processed channel
+ *                                         after cancellation. Pairs with the codec's analog
+ *                                         mic gain at Amazon's +20 dB (audio_device.xml
+ *                                         MICPGA 40); the port's +40 dB clips the ADC at
+ *                                         loud playback
  *   persist.vendor.amznaec.ref_clip   0   experimental: hard clip the loopback reference at
  *                                         this fraction of full scale (x1000, e.g. 250) so
  *                                         the filter can model an amplifier that clips
@@ -202,7 +203,7 @@ Settings read_settings() {
     s.spx_noise_suppress = property_get_int32("persist.vendor.amznaec.spx_noise_suppress", -15);
     s.spx_stereo = property_get_int32("persist.vendor.amznaec.spx_stereo", 1);
     s.spx_headroom_db = property_get_int32("persist.vendor.amznaec.spx_headroom_db", 12);
-    s.gain_db = property_get_int32("persist.vendor.amznaec.gain_db", 0);
+    s.gain_db = property_get_int32("persist.vendor.amznaec.gain_db", 20);
     s.ref_clip = property_get_int32("persist.vendor.amznaec.ref_clip", 0);
     return s;
 }
